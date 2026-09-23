@@ -15,6 +15,7 @@ type `T` is placed at an offset that is a multiple of `@alignof(T)`.
 | `bool`                     | 1                 | 1                      |
 | `*T`, `?*T`, `voidptr`     | one machine word  | machine word alignment |
 | `[]T`                      | two machine words | machine word alignment |
+| `dyn A`, `dyn mut A`       | two machine words | machine word alignment |
 | `[N]T`                     | `N * @sizeof(T)`  | `@alignof(T)`          |
 | `enum X(U)`                | `@sizeof(U)`      | `@alignof(U)`          |
 

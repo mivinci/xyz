@@ -51,7 +51,7 @@ let b = a;   // ✅ the elements are Copy
 ## Moving Out of a Place
 
 A move can only start from a **binding**. Reading a whole non-Copy value out of
-a place — behind `*p`, `->` or an index — is a compile error: the source is
+a place — behind `*p`, a field, or an index — is a compile error: the source is
 memory that any number of pointers may alias, so the compiler could never mark
 it as moved for everyone:
 
@@ -62,7 +62,7 @@ let mut b = Big{ a: 1, b: 2 };
 let p: *mut Big = &mut b;
 
 let m = *p;        // ❌ Big is not Copy, cannot move out of a place
-let n = p->a;      // ✅ u32 is Copy, reading a field is fine
+let n = p.a;      // ✅ u32 is Copy, reading a field is fine
 
 *p = Big{ a: 3, b: 4 };   // ✅ moving *into* a place is fine
 ```

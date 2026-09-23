@@ -50,7 +50,7 @@ use std::meta;                        // the namespace itself — meta::TypeInfo
 Paths are absolute; relative paths (`self::`, `super::`) are not defined. Two
 `use` of the same name in one file is a compile error.
 
-An enum is a namespace of its variants (`07-match.md`), so a variant is
+An enum is a namespace of its variants (`09-match.md`), so a variant is
 imported the same way:
 
 ```rust

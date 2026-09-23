@@ -44,7 +44,9 @@ let b = id(File{ fd: 0 }); // instantiates id<File>
 interchangeable as function pointers. The same instantiation is emitted once
 globally, no matter how many namespaces call it.
 
-Dispatch is fully static: no vtables, no trait objects, no runtime cost.
+Dispatch is fully static: no vtables, no trait objects, no runtime cost. `dyn`
+(`06-dispatch.md`) is the opt-in dynamic path, and it is written in the type
+rather than inferred from it.
 
 ## Bounds
 
@@ -136,7 +138,7 @@ Equal specificity over the same types is a compile error.
 A struct declaration takes the same shape patterns as an impl. Two structs
 with one name are ordered by specificity, and the most specific match wins for
 a given instantiation — this is what a type predicate such as `is_same` is
-built from (`06-reflection.md`):
+built from (`08-reflection.md`):
 
 ```rust
 struct is_same<A, B> {}   // shape only — members via inherent impl (05-traits.md)
@@ -225,7 +227,7 @@ A pack is manipulated with ordinary indexing and slicing, plus `@count`:
 | ---------- | ------- |
 | `@count(...Ts)` | the number of types in the pack, a compile-time constant |
 | `ts[0]` | the first element; an empty pack is a compile error |
-| `ts[1:]` | the tuple without its first element |
+| `ts[1..]` | the tuple without its first element |
 
 `...` in expression position expands a tuple or a slice into individual
 arguments:
@@ -240,7 +242,7 @@ type in the pack to implement `Show`.
 ### Compile-Time Recursion
 
 `comptime if` is the compile-time conditional: an ordinary `if`
-(`08-iteration.md`) whose condition must be compile-time known. The untaken
+(`10-iteration.md`) whose condition must be compile-time known. The untaken
 block is discarded before type checking, so it may contain code that only
 compiles for some instantiations:
 
@@ -249,7 +251,7 @@ fn sum<...Ts>(ts: ...Ts) -> i64 {
   comptime if @count(...Ts) == 0 {
     0
   } else {
-    @cast<i64>(ts[0]) + sum(...ts[1:])
+    @cast<i64>(ts[0]) + sum(...ts[1..])
   }
 }
 ```
@@ -299,4 +301,4 @@ impl<...Ts: Show> Show for (...Ts) { ... }
 ```
 
 The method bodies recurse the same way `sum` does — `comptime if` on the count,
-`ts[0]` and `...ts[1:]` to peel, the empty tuple to stop.
+`ts[0]` and `...ts[1..]` to peel, the empty tuple to stop.

@@ -1,6 +1,6 @@
 # Reflection
 
-This chapter continues `05-traits.md`.
+This chapter continues `07-operators.md`.
 
 Compile-time execution is the ordinary language evaluated by the compiler.
 This chapter defines the model, `std::meta::TypeInfo`, and the query builtins.
@@ -34,7 +34,7 @@ let four = twice(twice(n));      // runtime call — the argument is not known
 ```
 
 Functions with control flow become comptime-callable once that control flow
-is defined — `match` (`07-match.md`) and the loops (`08-iteration.md`).
+is defined — `match` (`09-match.md`) and the loops (`10-iteration.md`).
 
 ## Comptime parameters
 
@@ -47,7 +47,7 @@ appears in three positions — on a parameter, on an `if`, and on a `for`:
 | --- | --- | --- |
 | `comptime name: []u8` | the argument is compile-time known | usable wherever a compile-time value is required |
 | `comptime if cond` | the condition is compile-time known | the untaken block is discarded before type checking (`04-generics.md`) |
-| `comptime for x in xs` | the iterated value is compile-time known | the loop is unrolled; `x` is compile-time known (`08-iteration.md`) |
+| `comptime for x in xs` | the iterated value is compile-time known | the loop is unrolled; `x` is compile-time known (`10-iteration.md`) |
 
 An ordinary `if` or `for` whose input happens to be compile-time known is
 evaluated at compile time too; the `comptime` form is what turns that into a
@@ -79,7 +79,7 @@ A `comptime` parameter also carries a value that is part of a type — an array
 length, say:
 
 ```rust
-impl<T, comptime N: usize> IntoIterator for [N]T { ... }   // 08-iteration.md
+impl<T, comptime N: usize> IntoIterator for [N]T { ... }   // 10-iteration.md
 ```
 
 ## TypeInfo
@@ -251,7 +251,7 @@ let mut p = Point{ x: 0, y: 0 };
 The name must be compile-time known, so the field's type and offset are
 resolved during compilation. Serialization walks `@typeinfo` for the field
 list and uses `@field` per field; the walk is a `comptime for`
-(`08-iteration.md`), which is what makes each name compile-time known.
+(`10-iteration.md`), which is what makes each name compile-time known.
 `@offset<T>("f")` stays the layout query (`02-layout.md`).
 
 ## Type equality
@@ -303,7 +303,7 @@ conversion — `@cast`; reflection — `@typeinfo`, `@typeof`, `@field`; packs �
 `@count`; ownership — `@take`; expressions — `@if`; comptime — `@compileError`.
 
 What the standard library provides is not a builtin: `print` and `close` are
-ordinary functions reached through an ordinary path (`09-namespaces.md`).
+ordinary functions reached through an ordinary path (`11-namespaces.md`).
 
 ### Queries
 

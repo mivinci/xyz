@@ -1,6 +1,6 @@
 # Macros
 
-This chapter continues `06-reflection.md`. It records why xyz has **no
+This chapter continues `08-reflection.md`. It records why xyz has **no
 user-defined macro system**, and what the built-in `#` macros are for.
 
 ## No macro system
@@ -19,7 +19,7 @@ impl<T> Serialize for T {
     match @typeinfo<T>() {
       Struct { fields, .. } => {
         comptime for f in fields {
-          write_field(out, @field(*self, f->name));
+          write_field(out, @field(*self, f.name));
         }
       }
       Enum { .. }   => { /* tag, then payload */ }

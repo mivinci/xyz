@@ -2,12 +2,12 @@
 
 This chapter continues `01-types.md`, which defines `enum`. Pattern matching
 is the language's one control-flow construct that destructures a value. Loops
-and `return` come in `08-iteration.md`.
+and `return` come in `10-iteration.md`.
 
 `match` tests a value against a list of patterns and evaluates the arm of the
 first pattern that fits. It is an expression: the arm's value is the match's
 value, and every arm must have the same type — except an arm ending in `return`,
-which produces no value at all (`08-iteration.md`).
+which produces no value at all (`10-iteration.md`).
 
 ```rust
 match o {
@@ -20,7 +20,7 @@ match o {
 
 A pattern names a variant by its short name — the scrutinee's type picks out
 the enum — and binds the variant's payload. An enum is also a namespace: its
-variants live inside it (`09-namespaces.md`).
+variants live inside it (`11-namespaces.md`).
 
 ### No payload
 
@@ -86,7 +86,7 @@ match p {
 tuple pattern always fits and needs no wildcard arm of its own.
 
 A pattern also appears wherever a value is bound — `let`, `for`, and
-`while let` (`08-iteration.md`) — not only in `match`.
+`while let` (`10-iteration.md`) — not only in `match`.
 
 ## Exhaustiveness
 
@@ -120,7 +120,7 @@ keeps only the first element.
 A binding pattern must be **irrefutable** — it always fits. The type fixes a
 tuple's arity and a struct's field names, so both are checked at compile time:
 a wrong arity or an unknown field name is an error. `while let`
-(`08-iteration.md`) is the refutable counterpart, where the pattern may fail and
+(`10-iteration.md`) is the refutable counterpart, where the pattern may fail and
 failure ends the loop.
 
 ## Blocks

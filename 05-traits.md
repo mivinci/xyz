@@ -20,8 +20,8 @@ impl Show for Point {
 ```
 
 `print` and `close` below are ordinary functions from `std::io`, brought into
-scope with `use std::io;` (`09-namespaces.md`) — not `@` builtins, which are
-listed in `06-reflection.md`.
+scope with `use std::io;` (`11-namespaces.md`) — not `@` builtins, which are
+listed in `08-reflection.md`.
 
 `self` is an ordinary parameter — `*Self` for a read-only method, `*mut Self`
 for a mutating one.
@@ -29,8 +29,10 @@ for a mutating one.
 A method call is sugar: the receiver is adapted to the `self` the method
 declares, so `p.len()` is `Point::len(&p)` and `it.next()` is `It::next(&mut it)`.
 Taking `&mut` still requires a `mut` slot, exactly as `&mut` does anywhere else
-(`01-types.md`). The explicit form stays available — `Show::show(&p)` is the
-same call written out.
+(`01-types.md`). Where the receiver is a pointer it is dereferenced first, so
+`sp.len()` with `sp: *Point` is `Point::len(&*sp)` — which is `sp` again. A
+`dyn A` handle is passed the same way (`06-dispatch.md`). The explicit form
+stays available — `Show::show(&p)` is the same call written out.
 
 Everywhere else there is no implicit borrowing: an argument list passes exactly
 what you wrote (`03-move.md`).
@@ -112,6 +114,11 @@ inherent impls of a specialized struct unchanged.
 How generic functions are instantiated, how bounds are checked, and how
 multiple impls of a trait are ordered — see `04-generics.md`.
 
+## Operators
+
+`+`, `<` and `==` are trait methods as well — `Add`, `Ord` and `Eq` — and an
+operator is sugar for the call. See `07-operators.md`.
+
 ## Copy
 
 `Copy` is a marker trait — it has no functions, so its impl is empty. The
@@ -173,7 +180,7 @@ enum Option<T> {
 ```
 
 `Some` and `None` are written without a prefix — that is part of the `?T` sugar,
-not of `use` (`09-namespaces.md`).
+not of `use` (`11-namespaces.md`).
 
 Niche optimization is a compiler specialization for `Option` specifically,
 not a trait-system feature: when `T` has an unused bit pattern, `@sizeof(?T)`

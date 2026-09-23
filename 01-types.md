@@ -102,10 +102,11 @@ a[0] = 42;
 `[]T` is a fat pointer: a pointer to the first element plus a length. It borrows
 elements owned by something else, so it never allocates. The two parts are
 named — `s.ptr` is `*T` (`*mut T` for `[]mut T`) and `s.len` is a `usize`. They
-behave like `mut` struct fields: advancing the view writes `s.ptr` and `s.len`,
-and that touches nothing the slice borrows, so a `[]T` whose elements cannot be
-written may still be advanced. Writing the slice itself — `s = ...` — is
-governed by the binding's `mut`, exactly as `p = ...` is.
+behave like `mut` struct fields, so both can be written; the way to advance the
+view, though, is to slice it — `s = s[1..]` below. Neither touches the elements
+the slice borrows, so a `[]T` whose elements cannot be written may still be
+advanced. Writing the slice itself — `s = ...` — is governed by the binding's
+`mut`, exactly as `p = ...` is.
 
 ```rust
 let a = [3]u32{1, 2, 3};
@@ -123,6 +124,18 @@ let s: []mut u32 = a;
 
 s[0] = 9;   // ✅ the elements are mut
 ```
+
+Slicing a slice moves its start — `s[a..b]` is the elements from `a` up to `b`,
+and `s[a..]` reaches the end. Nothing is copied; the result borrows the same
+elements:
+
+```rust
+let rest = s[1..];   // []u32 — the same elements, one shorter
+```
+
+A range that leaves the slice is caught by the runtime checks in `debug` and is
+undefined behaviour in `release`, exactly as an out-of-range index is. The same
+`[a..b]` works on a tuple (`04-generics.md`).
 
 There is no borrow checker. A slice is rejected at compile time only when the
 compiler can see that it outlives what it borrows — returning a slice of a local
@@ -333,22 +346,47 @@ let c = 42;
 let r: *mut i32 = &mut c;  // ❌ the binding c is not mut
 ```
 
-`*p` reads the pointee and `*p = v` writes it. Fields of a struct are reached
-with `->`, as in C:
+`*p` reads the pointee and `*p = v` writes it. A pointer is dereferenced as far
+as it needs to be to reach a member, so `sp.b` is `(*sp).b` — there is no `->` —
+and a method is called the same way (`05-traits.md`):
 
 ```rust
 let mut s = P{ a: 1, b: 2 };
 let sp: *mut P = &mut s;
 
-sp->b = 3;   // ✅ P::b is mut
-sp->a = 3;   // ❌ P::a is not mut
+sp.b = 3;   // ✅ P::b is mut
+sp.a = 3;   // ❌ P::a is not mut
 ```
 
-Pointer arithmetic is allowed:
+A pointer can be walked, but a slice is usually the better tool: `s[1..]` moves
+a whole view at once and cannot leave the sequence (Slice above) — the slice
+iterators in `10-iteration.md` are written that way. Arithmetic is for what a
+slice cannot express, because there is no length to carry: an allocator walking
+a block, or a walk that knows only where it ends:
 
 ```rust
-let next: *i32 = p + 1;
+let next: *i32 = p + 1;   // steps by @sizeof(i32)
 ```
+
+`+` and `-` take an integer; there is no subtraction of two pointers. `voidptr`
+cannot be walked, since it has no element size.
+
+Pointers of the same type compare with `<`, `>`, `<=` and `>=`, which is what a
+walk needs in order to know where to stop:
+
+```rust
+let mut p: *i32 = &a[0];
+let end: *i32 = p + 3;
+
+while p < end {
+  use(*p);
+  p = p + 1;
+}
+```
+
+The order is unspecified unless both point into the same array — as in C.
+Equality, `==` and `!=`, works on any two pointers of the same type; it is
+already what a `?*T` check compares against `None`.
 
 Holding a `*T` and a `*mut T` to the same value at the same time is allowed,
 exactly as in C — an immutable pointer does not promise that the value stays
@@ -380,13 +418,13 @@ uses it as a niche, so `@sizeof(?*T)` equals `@sizeof(*T)` — the null pointer
 value represents the empty case. Types without a spare bit pattern carry a tag
 instead, so `?u32` is larger than `u32`.
 
-`voidptr` is the opaque pointer type. It can neither be dereferenced nor used
-in pointer arithmetic — `@cast` it to a concrete pointer type first:
+`voidptr` is the opaque pointer type. It can neither be dereferenced nor walked
+— it has no element size — so `@cast` it to a concrete pointer type first:
 
 ```rust
 let v: voidptr = @cast<voidptr>(q);
 let back: *mut i32 = @cast<*mut i32>(v);
-let bad = v + 1;   // ❌ no pointer arithmetic on voidptr
+let bad = v + 1;   // ❌ voidptr cannot be walked
 ```
 
 ## Cast
