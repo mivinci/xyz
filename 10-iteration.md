@@ -425,21 +425,40 @@ pointer does not.
 
 ## Serialization
 
-With `match`, `@field`, and `for`, a deserializer reads a struct field by
+With `match`, `@field`, and `const for`, a deserializer fills a struct field by
 field:
 
 ```rust
 fn deserialize<T>(s: []u8) -> T {
+  let doc = parse(s);          // the bytes become a tree of values — no T yet
   match @typeinfo<T>() {
     Struct { fields, .. } => {
       let mut v = T{};                 // zero-init
-      const for f in fields {                // f: *Field — a borrow
-        *@field(v, f.name) = parse_field(f, s);
+      const for f in fields {          // f: *Field — a borrow
+        *@field(v, f.name) = doc.get<$$f.type>(f.name);
       }
       v
     }
     _ => @compileError("not a struct"),
   }
+}
+```
+
+The input is consumed once, before the `match`; the `match` only routes on the
+shape of `T`. `$$f.type` splices the field's type reference back into a type and
+`f.name` is compile-time known because the loop is unrolled — the two things the
+assignment needs (`08-reflection.md`).
+
+A format that is not self-describing — a binary layout with no tags — cannot be
+parsed before `T` is known, since how long a field is depends on its type. There
+the parse has to move with the loop, carrying the rest of the input along:
+
+```rust
+let mut cur = s;
+const for f in fields {
+  let (x, rest) = parse_field<$$f.type>(cur);
+  *@field(v, f.name) = x;
+  cur = rest;
 }
 ```
 
