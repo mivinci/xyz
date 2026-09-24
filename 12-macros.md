@@ -1,7 +1,7 @@
 # Macros
 
 This chapter continues `08-reflection.md`. It records why xyz has, **so far**, no
-user-defined macro system, and what the built-in `#` macros are for. The
+user-defined macro system, and what the built-in `#` constructs are for. The
 conclusion is not settled — see the open items at the end.
 
 ## No macro system
@@ -59,9 +59,9 @@ types written long after the accessor would have been.
 
 ## What remains built in
 
-Two `#` macros stay, because none of the above can do their job:
+Two `#` constructs stay, because none of the above can do their job:
 
-| macro | what it does | why no impl can replace it |
+| construct | what it does | why no impl can replace it |
 | --- | --- | --- |
 | `#repr(packed)` / `#repr(align(N))` | changes layout (`02-layout.md`) | layout is not a trait |
 | `#assert` | compile-time assertion | not a declaration |
@@ -74,5 +74,5 @@ hand (`05-traits.md`).
 
 A macro system would only earn its place for something reflection cannot
 express — new syntax, which is what a DSL needs. That is out of scope here, and
-the built-in macros cannot rewrite arbitrary syntax in any case. Should it ever
+the built-in constructs cannot rewrite arbitrary syntax in any case. Should it ever
 be wanted, the first question is whether the language wants new syntax at all.

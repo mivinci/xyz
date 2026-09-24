@@ -47,8 +47,10 @@ use std::meta::{TypeInfo, Field};     // several
 use std::meta;                        // the namespace itself — meta::TypeInfo
 ```
 
-Paths are absolute; relative paths (`self::`, `super::`) are not defined. Two
-`use` of the same name in one file is a compile error.
+A path begins with a name that is in scope. `std` always is; `use` puts others
+there — including a namespace, which is what makes `meta::TypeInfo` resolve
+after `use std::meta;`. Relative paths (`self::`, `super::`) are not defined.
+Two `use` of the same name in one file is a compile error.
 
 An enum is a namespace of its variants (`09-match.md`), so a variant is
 imported the same way:

@@ -298,11 +298,11 @@ visible to both.
 
 ## Borrow
 
-Converting an array to a slice borrows it and does not move it:
+Slicing an array borrows it and does not move it:
 
 ```rust
 let a = [3]u32{1, 2, 3};
-let s: []u32 = a;      // ✅ a still owns the elements
+let s: []u32 = a[..];   // ✅ a still owns the elements
 
 #assert(a[0] == 1);
 ```

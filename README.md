@@ -9,27 +9,29 @@ placeholder for the same reason.
 
 ## Chapters
 
-Read them in order; each chapter opens by naming the one it continues.
+Each chapter opens by naming what it continues. The dependencies are not a chain
+— `09` and `11` follow from `01` alone, and `10` needs both `05` and `09` — but
+the order below is one valid way through them.
 
-| file | what it defines |
-| --- | --- |
-| [01-types.md](./01-types.md) | types and `mut`, arrays, slices, structs, pointers, enums, strings |
-| [02-layout.md](./02-layout.md) | size and alignment, `#repr` |
-| [03-move.md](./03-move.md) | move semantics, `Copy`, `Drop`, `@take` |
-| [04-generics.md](./04-generics.md) | generics, specialization, shape patterns, variadics |
-| [05-traits.md](./05-traits.md) | traits, associated items, inherent impls, `Option` |
-| [06-dispatch.md](./06-dispatch.md) | `dyn A`, dynamic dispatch, object safety |
-| [07-operators.md](./07-operators.md) | operators as trait methods, `Add`/`Ord`/`Eq` |
-| [08-reflection.md](./08-reflection.md) | compile-time execution, `TypeInfo`, the builtin table |
-| [09-match.md](./09-match.md) | pattern matching |
-| [10-iteration.md](./10-iteration.md) | `Iterator`, `while`, `for`, `if`, `return` |
-| [11-namespaces.md](./11-namespaces.md) | a directory is a namespace, `use` |
-| [12-macros.md](./12-macros.md) | the case against a user-defined macro system (not settled) |
+| file | continues | what it defines |
+| --- | --- | --- |
+| [01-types.md](./01-types.md) | — | types and `mut`, arrays, slices, structs, pointers, enums, strings |
+| [02-layout.md](./02-layout.md) | `01` | size and alignment, `#repr` |
+| [03-move.md](./03-move.md) | `02` | move semantics, `Copy`, `Drop`, `@take` |
+| [04-generics.md](./04-generics.md) | `03` | generics, specialization, shape patterns, variadics |
+| [05-traits.md](./05-traits.md) | `04` | traits, associated items, inherent impls, `Option` |
+| [06-dispatch.md](./06-dispatch.md) | `05` | `dyn A`, dynamic dispatch, object safety |
+| [07-operators.md](./07-operators.md) | `05` | operators as trait methods, `Add`/`Ord`/`Eq` |
+| [08-reflection.md](./08-reflection.md) | `07` | compile-time execution, `TypeInfo`, the builtin table |
+| [09-match.md](./09-match.md) | `01` | pattern matching |
+| [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `while`, `for`, `if`, `return` |
+| [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use` |
+| [12-macros.md](./12-macros.md) | `08` | the case against a user-defined macro system (not settled) |
 
 ## Notation
 
-- `@xxx` is a builtin function and `#xxx` is a built-in construct — the full
-  list is in `08-reflection.md`
+- `@xxx` is a builtin function — the full list is in `08-reflection.md`
+- `#xxx` is a built-in construct — there are two, listed in `12-macros.md`
 - `mut` marks **the slot right after it**: a variable, a field, an element, or a
   parameter. There is one rule, not one per position.
 - ✅ and ❌ in an example mean it does or does not compile

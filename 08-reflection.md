@@ -109,7 +109,7 @@ enum TypeInfo {
   Array   { len: usize, child: type, mutable: bool },       // [N]T / [N]mut T
   Struct  { fields: []Field, repr: Repr },
   Union   { fields: []Field, repr: Repr },
-  Enum    { tag: type, variants: []EnumField },            // ?T lands here
+  Enum    { tag: type, variants: []EnumField },            // Option<T>; ?T lands here when T has no niche
   Tuple   { fields: []Field },                             // (A, B, ...) — () has none; names are empty
   Voidptr,                                                 // voidptr
 }

@@ -165,9 +165,13 @@ any other `dyn A` (`06-dispatch.md`).
 
 ## Copy
 
-`Copy` is a marker trait — it has no functions, so its impl is empty. The
-compiler accepts it only when every field (or element) is itself `Copy` and no
-destructor exists (see `Drop` below).
+```rust
+trait Copy { }
+```
+
+`Copy` is a marker trait — a trait with no functions, which is why its impl is
+empty. The compiler accepts an impl only when every field (or element) is itself
+`Copy` and no destructor exists (see `Drop` below).
 
 ```rust
 struct Point {
@@ -181,6 +185,12 @@ impl Copy for Point { }
 See `03-move.md` for what `Copy` does on assignment.
 
 ## Drop
+
+```rust
+trait Drop {
+  fn drop(mut self: Self) -> ();
+}
+```
 
 `Drop` has a single function, `drop`, which receives the value by ownership.
 It runs when the binding that owns the value reaches the end of its scope —
@@ -209,6 +219,10 @@ impl Drop for BadFd {
 
 `Copy` and `Drop` are mutually exclusive. The compiler rejects `impl Copy`
 when any field is not `Copy` or a destructor exists.
+
+Both are ordinary traits — declared once, implemented by hand like any other.
+What sets them apart is that the compiler knows their names: it checks a `Copy`
+impl against the type's fields, and it inserts the `Drop` call.
 
 ## Option
 

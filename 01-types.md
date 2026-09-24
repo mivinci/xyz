@@ -1,6 +1,6 @@
 # Types
 
-This chapter requires that you've already known that `@xxx` is a builtin function and `#xxx` is a macro.
+This chapter requires that you've already known that `@xxx` is a builtin function and `#xxx` is a built-in construct — there are two, listed in `12-macros.md`.
 
 ## Primitives
 
@@ -103,14 +103,14 @@ a[0] = 42;
 elements owned by something else, so it never allocates. The two parts are
 named — `s.ptr` is `*T` (`*mut T` for `[]mut T`) and `s.len` is a `usize`. They
 behave like `mut` struct fields, so both can be written; the way to advance the
-view, though, is to slice it — `s = s[1..]` below. Neither touches the elements
+view, though, is to slice it — `s[1..]`, below. Neither touches the elements
 the slice borrows, so a `[]T` whose elements cannot be written may still be
 advanced. Writing the slice itself — `s = ...` — is governed by the binding's
 `mut`, exactly as `p = ...` is.
 
 ```rust
 let a = [3]u32{1, 2, 3};
-let s: []u32 = a;   // [3]u32 → []u32
+let s: []u32 = a[..];   // the whole array, as a slice
 
 #assert(s[0] == 1);
 #assert(s[2] == 3);
@@ -120,7 +120,7 @@ As with arrays, `mut` marks whether the elements can be written:
 
 ```rust
 let a = [3]mut u32{1, 2, 3};
-let s: []mut u32 = a;
+let s: []mut u32 = a[..];
 
 s[0] = 9;   // ✅ the elements are mut
 ```
@@ -133,6 +133,8 @@ elements:
 let rest = s[1..];   // []u32 — the same elements, one shorter
 ```
 
+The same range notation over an array makes a slice of it.
+
 A range that leaves the slice is caught by the runtime checks in `debug` and is
 undefined behaviour in `release`, exactly as an out-of-range index is. The same
 `[a..b]` works on a tuple (`04-generics.md`).
@@ -144,11 +146,12 @@ dangling slice is undefined behaviour. A `debug` build may catch some of these;
 how, and how many, is up to the implementation — the language promises nothing
 here. See What xyz guarantees in `README.md`.
 
-An array never decays to a plain pointer. To get a `*T`, take the address of an
-element explicitly:
+An array never decays — not to a plain pointer, and not to a slice. Both have to
+be asked for by name:
 
 ```rust
-let p: *u32 = &a[0];
+let p: *u32 = &a[0];   // a pointer to one element
+let s: []u32 = a[..];  // a slice of the whole array
 ```
 
 ## Struct
