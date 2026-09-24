@@ -11,12 +11,13 @@ placeholder for the same reason.
 
 Each chapter opens by naming what it continues. The dependencies are not a chain
 — `09` and `11` follow from `01` alone, and `10` needs both `05` and `09` — but
-the order below is one valid way through them. `01-types.md` also states the
-notation the examples use.
+the order below is one valid way through them. `00-preliminaries.md` states the
+notation and the terms every chapter uses.
 
 | file | continues | what it defines |
 | --- | --- | --- |
-| [01-types.md](./01-types.md) | — | types and `mut`, arrays, slices, structs, pointers, enums, strings |
+| [00-preliminaries.md](./00-preliminaries.md) | — | notation; `slot`, `place`, compile-time known |
+| [01-types.md](./01-types.md) | `00` | types and `mut`, arrays, slices, structs, pointers, enums, strings |
 | [02-layout.md](./02-layout.md) | `01` | size and alignment, `#repr` |
 | [03-move.md](./03-move.md) | `02` | move semantics, `Copy`, `Drop`, `@take` |
 | [04-generics.md](./04-generics.md) | `03` | generics, specialization, shape patterns, variadics |

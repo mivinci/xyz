@@ -1,8 +1,6 @@
 # Types
 
-This chapter requires that you've already known that `@xxx` is a builtin function
-and `#xxx` is a built-in construct — there are two, listed in `12-macros.md`. In
-an example, ✅ means it compiles and ❌ means it does not.
+This chapter continues `00-preliminaries.md`.
 
 ## Primitives
 
