@@ -346,9 +346,18 @@ let c = 42;
 let r: *mut i32 = &mut c;  // ❌ the binding c is not mut
 ```
 
-`*p` reads the pointee and `*p = v` writes it. A pointer is dereferenced as far
-as it needs to be to reach a member, so `sp.b` is `(*sp).b` — there is no `->` —
-and a method is called the same way (`05-traits.md`):
+`*p` is a place — a location, not a value — in the same way that `x` and `x.f`
+are. Three things can be done with one:
+
+```rust
+let x = *p;    // read
+*p = v;        // write
+p.f, p[0]      // reach a member
+```
+
+A pointer is dereferenced as far as it needs to be to reach a member, so `sp.b`
+is `(*sp).b` — there is no `->` — and a method is called the same way
+(`05-traits.md`):
 
 ```rust
 let mut s = P{ a: 1, b: 2 };
@@ -357,6 +366,52 @@ let sp: *mut P = &mut s;
 sp.b = 3;   // ✅ P::b is mut
 sp.a = 3;   // ❌ P::a is not mut
 ```
+
+Reading and writing are both restricted:
+
+- a read, `let x = *p`, moves a value out of a place, and a move can only start
+  from a binding — so it is a compile error unless `T` is `Copy`. `@take`
+  (`03-move.md`) is how a non-`Copy` value comes out.
+- a write, `*p = v`, needs `p: *mut T`. It destructs the value already there,
+  which is sound because a `*mut T` is exclusive (Exclusivity below).
+
+`&*p` is `p` itself.
+
+`*mut T` grants write access to the pointee as a whole — `*p = v`. It does not
+unlock the interior: whether `sp.a`, `sp[0]` or anything else inside can be
+written is decided by the type, exactly as it is for a binding. Taking a mutable
+pointer is therefore not a way to obtain permission the type does not give.
+
+### Exclusivity
+
+A `*mut T` is exclusive: while one is live, nothing else may reach the value it
+points at — not the binding it was made from, and not another pointer to the same
+memory. That is what lets `*p = v` destruct the old value in place: there is one
+way to reach it, so it has exactly one owner.
+
+```rust
+let mut x = File{ fd: 3 };
+let p: *mut File = &mut x;
+
+x.fd;               // ❌ x is borrowed by p
+let q: *mut File = &mut x;   // ❌ x is already borrowed
+let r: *File = &x;           // ❌ likewise
+*p = File{ fd: 6 };          // ✅ the old value is destructed first
+```
+
+The check is static, and it is the same kind of check the move analysis makes
+(`03-move.md`): the compiler follows the pointers it can see. Across a function
+boundary there is no lifetime information, so there exclusivity is a promise
+rather than a proof — the same bargain a slice makes: breaking it is caught by
+the runtime checks in `debug` and is undefined behaviour in `release`.
+
+A `*T` is not exclusive; any number of them may point at the same value. What
+they promise is only that the value cannot be written through them.
+
+A place reached through a pointer behaves like a borrow in Rust: neither language
+lets a non-`Copy` value move out of one, and both reach for the same tool —
+`@take` here, `mem::take` there. Exclusivity is what lets the write drop the old
+value, exactly as it does there.
 
 A pointer can be walked, but a slice is usually the better tool: `s[1..]` moves
 a whole view at once and cannot leave the sequence (Slice above) — the slice
@@ -388,9 +443,8 @@ The order is unspecified unless both point into the same array — as in C.
 Equality, `==` and `!=`, works on any two pointers of the same type; it is
 already what a `?*T` check compares against `None`.
 
-Holding a `*T` and a `*mut T` to the same value at the same time is allowed,
-exactly as in C — an immutable pointer does not promise that the value stays
-unchanged.
+Holding several `*T` to the same value is fine. Holding a `*T` and a `*mut T` to
+it at the same time is not — a `*mut T` is exclusive (Exclusivity above).
 
 `@sizeof(*T)` and `@sizeof(*mut T)` are equal, and returning the address of a
 local is a compile error.
@@ -413,10 +467,13 @@ if p != None {
 
 Types distinguish them: `is_same<?*i32, *i32>::value` is false.
 
-`?T` is sugar for `Option<T>`. When `T` has an unused bit pattern the compiler
-uses it as a niche, so `@sizeof(?*T)` equals `@sizeof(*T)` — the null pointer
-value represents the empty case. Types without a spare bit pattern carry a tag
-instead, so `?u32` is larger than `u32`.
+`?T` is `Option<T>`: nothing about `None`, `Some` or `match` differs from any
+other enum. What differs is the layout — when `T` has an unused bit pattern the
+compiler puts the empty case in that niche, so `@sizeof(?*T)` equals
+`@sizeof(*T)` and the null pointer value represents the empty case. Types
+without a spare bit pattern carry a tag instead, so `?u32` is larger than `u32`.
+Reflection reports the same split: `@typeinfo<?*T>()` is a `Pointer` with
+`optional: true`, while `@typeinfo<?u32>()` is an `Enum` (`08-reflection.md`).
 
 `voidptr` is the opaque pointer type. It can neither be dereferenced nor walked
 — it has no element size — so `@cast` it to a concrete pointer type first:
@@ -448,6 +505,38 @@ enum X(u32) {
   E,
 }
 ```
+
+`enum X(u32)` names the tag type. Left out, the compiler uses the smallest
+unsigned integer that holds every variant, so `enum Ordering { Less, Equal,
+Greater }` has a `u8` tag.
+
+A variant carries a payload, or it does not. There are three shapes:
+
+```rust
+enum Shape {
+  Empty,                     // no payload
+  Circle(f32),               // positional
+  Rect { w: f32, h: f32 },   // named
+}
+```
+
+Values are assigned in order from 0, and `A = 10` sets one explicitly — the next
+variant continues from there. Payload variants follow the same rule and never
+need a value written.
+
+A payload is matched the way it is written: `Circle(r)` binds positionally,
+`Rect { w, h }` by name (`09-match.md`). `Option<T>` is an ordinary enum of this
+kind:
+
+```rust
+enum Option<T> {
+  None,
+  Some(T),
+}
+```
+
+A payload enum is laid out as its tag followed by a union of the payloads
+(`02-layout.md`).
 
 The variants are of type `X`, not of the underlying type, so `@cast` is needed
 to get the integer out:
@@ -500,6 +589,80 @@ let d = cr"hi\n";   // d: []u8 — backslash and `n`, then '\0'
 A raw literal cannot contain `"` — it is the delimiter. Write a quote as an
 escaped `\"` in a normal literal instead; there is no `r#"..."#` nesting.
 
+## Functions
+
+A function has a type, written with the same keyword:
+
+```rust
+fn twice(x: u32) -> u32 { x + x }
+
+let f: fn(u32) -> u32 = twice;
+```
+
+A function pointer is an ordinary pointer — `@sizeof(fn(u32) -> u32)` is one
+machine word — and `?fn(u32) -> u32` is the nullable form.
+
+### Closures
+
+A closure is written the same way, with a capture list in brackets:
+
+```rust
+let factor = 3;
+let scale = fn[factor](x: i32) -> i32 { x * factor };
+```
+
+A capture is taken **by value** — a `Copy` one is copied, any other is moved in
+and the name is unusable afterwards (`03-move.md`):
+
+```rust
+let name = Name{ ... };                 // not Copy
+let greet = fn[name]() { use(name) };
+
+name;                                   // ❌ moved into the closure
+```
+
+`mut` marks the captured slot writable, as it does anywhere else:
+
+```rust
+let mut n = 0;
+let tick = fn[mut n]() { n = n + 1 };
+```
+
+Or the capture is a **pointer**, written with the usual address-of operators —
+`&a` gives a `*T`, `&mut a` a `*mut T`. This is what a closure that accumulates
+into an outer variable needs, since a by-value capture could never hand the
+result back:
+
+```rust
+let mut total = 0;
+let add = fn[&mut total](x: i32) { *total = *total + x };
+```
+
+A pointer capture is a borrow like any other: `&mut total` is exclusive
+(Exclusivity above), so `total` cannot be touched while the closure is live, and
+a closure that outlives what it points at is the same bargain a slice makes —
+caught by the runtime checks in `debug`, undefined behaviour in `release`.
+
+An empty list, `fn[]`, captures whatever the body uses:
+
+```rust
+let scale = fn[](x: i32) -> i32 { x * factor };
+```
+
+A closure that captures nothing can be used as a plain function pointer:
+
+```rust
+let g: fn(i32) -> i32 = fn[](x: i32) { x * 2 };
+```
+
+Which of `Fn`, `FnMut` or `FnOnce` a closure implements follows from what its
+body does with the captures (`05-traits.md`). A pointer capture does not by
+itself demand `FnMut`: writing through a captured `*mut T` is permitted by the
+pointer's own type, so reading that pointer out of a `*Self` is enough. Only
+writing *through* `self` — a `mut` by-value capture — needs `FnMut`. Rust
+answers this differently, because there a `&mut` has to be reborrowed out of the
+closure, which needs `&mut self`.
+
 ## Compile-Time Checks
 
 Whatever the compiler can prove wrong is rejected at compile time instead of
@@ -510,6 +673,8 @@ being left to run time:
 - arithmetic on constants that overflows
 - dereferencing a `?*T` that has not been checked
 - taking `&mut` of a slot that is not `mut`
+- reaching a value — through its binding, or through another pointer — while a
+  `*mut T` to it is live (Exclusivity below)
 - returning the address of a local
 - returning a slice that outlives what it borrows
 - giving more initializers than the array length

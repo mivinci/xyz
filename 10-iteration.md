@@ -93,7 +93,7 @@ consuming it:
 trait IntoIterator {
   type Item;
   type IntoIter: Iterator<Item = Self::Item>;
-  fn into_iter(self) -> Self::IntoIter;
+  fn into_iter(self: Self) -> Self::IntoIter;
 }
 ```
 
@@ -109,7 +109,7 @@ conversion:
 impl<I: Iterator> IntoIterator for I {
   type Item = I::Item;
   type IntoIter = I;
-  fn into_iter(self) -> I { self }
+  fn into_iter(self: Self) -> I { self }
 }
 ```
 
@@ -127,7 +127,7 @@ struct ArrayIter<T, comptime N: usize> {
 impl<T, comptime N: usize> IntoIterator for [N]T {
   type Item = T;
   type IntoIter = ArrayIter<T, N>;
-  fn into_iter(self) -> ArrayIter<T, N> {
+  fn into_iter(self: Self) -> ArrayIter<T, N> {
     ArrayIter<T, N>{ arr: self, index: 0 }
   }
 }
@@ -160,15 +160,15 @@ then a slice over the array's own storage, so nothing moves:
 impl<T, comptime N: usize> IntoIterator for *[N]T {
   type Item = *T;
   type IntoIter = []T;
-  fn into_iter(self) -> []T {
+  fn into_iter(self: Self) -> []T {
     []T { ptr: &(*self)[0], len: N }
   }
 }
 
-impl<T, comptime N: usize> IntoIterator for *mut [N]T {
+impl<T, comptime N: usize> IntoIterator for *mut [N]mut T {
   type Item = *mut T;
   type IntoIter = []mut T;
-  fn into_iter(self) -> []mut T {
+  fn into_iter(self: Self) -> []mut T {
     []mut T { ptr: &mut (*self)[0], len: N }
   }
 }
@@ -264,7 +264,7 @@ Whether the container is used up depends on what is iterated:
 | ---- | -------------- | --- | -------- |
 | `for x in arr` | `[N]T` — an owned array | `T` | ✅ the array is consumed |
 | `for x in &arr` | `*[N]T` | `*T` | ❌ |
-| `for x in &mut arr` | `*mut [N]T` | `*mut T` | ❌ |
+| `for x in &mut arr` | `*mut [N]mut T` | `*mut T` | ❌ |
 | `for x in s`, `s: []T` | `[]T` | `*T` | ❌ |
 | `for x in s`, `s: []mut T` | `[]mut T` | `*mut T` | ❌ |
 
@@ -278,6 +278,20 @@ let arr = [3]u32{1, 2, 3};
 for a in arr { use(a); }     // a: u32 — arr is consumed
 for a in &arr { use(*a); }   // a: *u32 — arr is still there
 ```
+
+Mutable iteration yields `*mut T`, and a mutable pointer cannot grant permission
+the type does not give (`01-types.md`), so the elements have to be `mut` — the
+`let mut a = [3]mut u32{}` row of the table there:
+
+```rust
+let mut arr = [3]mut u32{1, 2, 3};
+
+for a in &mut arr { *a = 0; }   // a: *mut u32
+```
+
+With a plain `[3]u32`, `*mut [N]mut T` does not match, and since `*mut [N]T` also
+matches `*[N]T` (`04-generics.md`) the read-only impl is what applies: `x` is
+`*u32` and `*x = v` is rejected — the same answer `arr[0] = v` gets.
 
 ### Comptime For
 
@@ -428,3 +442,7 @@ fn deserialize<T>(s: []u8) -> T {
   }
 }
 ```
+
+Writing a field is governed by its `mut` (`08-reflection.md`), so this fills in a
+`T` whose fields are declared `mut`. A type with immutable fields cannot be built
+this way — it has to be produced whole, by a constructor or a literal.

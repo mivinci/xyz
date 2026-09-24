@@ -45,13 +45,26 @@ appears in three positions — on a parameter, on an `if`, and on a `for`:
 
 | where | requires | effect |
 | --- | --- | --- |
-| `comptime name: []u8` | the argument is compile-time known | usable wherever a compile-time value is required |
+| `comptime x: T` in a parameter list | the argument is compile-time known | usable wherever a compile-time value is required |
 | `comptime if cond` | the condition is compile-time known | the untaken block is discarded before type checking (`04-generics.md`) |
 | `comptime for x in xs` | the iterated value is compile-time known | the loop is unrolled; `x` is compile-time known (`10-iteration.md`) |
+
+A parameter list means any of them — a function, an `impl`, a `struct`, or a
+trait. On a type parameter list it marks a *value* parameter: one that has to be
+a compile-time value rather than a type, which is what an array length is:
+
+```rust
+impl<T, comptime N: usize> IntoIterator for [N]T { ... }
+```
 
 An ordinary `if` or `for` whose input happens to be compile-time known is
 evaluated at compile time too; the `comptime` form is what turns that into a
 requirement.
+
+`comptime` is part of the signature: `fn f(x: u32)` and `fn f(comptime x: u32)`
+are distinct overloads. Any type may be marked `comptime`; a type whose value
+cannot exist at compile time (a `File`, say) is rejected by the no-effects
+rule, not by a special comptime-type check.
 
 ```rust
 fn field_offset<T>(comptime name: []u8) -> usize {
@@ -69,11 +82,6 @@ rejected there, not inside the body:
 let n = read_string();          // runtime
 field_offset<Point>(n);        // ❌ n is not compile-time known
 ```
-
-`comptime` is part of the signature: `fn f(x: u32)` and `fn f(comptime x: u32)`
-are distinct overloads. Any type may be marked `comptime`; a type whose value
-cannot exist at compile time (a `File`, say) is rejected by the no-effects
-rule, not by a special comptime-type check.
 
 A `comptime` parameter also carries a value that is part of a type — an array
 length, say:
@@ -137,10 +145,19 @@ let a: TypeInfo = @typeinfo<u32>();   // Int { bits: 32, signed: false }
 let b: TypeInfo = @typeinfo(42);      // Int { bits: 32, signed: true }
 ```
 
-`?T` is sugar for `Option<T>`, and `Option<T>` is an enum, so `@typeinfo<?T>()`
-is an `Enum`, not a distinct `Optional` variant. There is no special case:
-the nullable modifier is visible only on pointers and slices, where it is a
-field of the variant.
+`?T` is `Option<T>`, so `None`, `Some` and `match` work on it whatever `T` is.
+What the type *is* underneath depends on `T`, though, and `@typeinfo` reports
+that:
+
+- for a pointer or a slice, the compiler puts the empty case in a niche — the
+  null pointer — so `@typeinfo<?*T>()` is a `Pointer` with `optional: true` and
+  `@typeinfo<?[]T>()` is a `Slice` with `optional: true`. The value is still one
+  or two words (`01-types.md`), not an `Option` wrapped around it.
+- for anything else there is no niche to use, so the type really is
+  `Option<T>`: `@typeinfo<?u32>()` is an `Enum`.
+
+There is no `Optional` variant of `TypeInfo`; nullability either rides along in a
+field or shows up as the enum it is.
 
 `()` is the unit type — there is no `void` (`01-types.md`) — so `@typeinfo<()>()`
 is a `Tuple` with no fields, not a distinct `Void` variant. `voidptr` keeps its
@@ -282,7 +299,7 @@ Predicate structs are `snake_case`, ordinary structs are `PascalCase`:
 ## Builtins
 
 `@xxx` is a builtin — a function the language provides, not one written in it.
-There are eleven, and each is defined where it belongs:
+There are ten, and each is defined where it belongs:
 
 | builtin | what it does | defined in |
 | --- | --- | --- |
@@ -295,12 +312,12 @@ There are eleven, and each is defined where it belongs:
 | `@field(v, "name")` | the address of field `name` | this chapter |
 | `@count(...Ts)` | pack length | `04-generics.md` |
 | `@take(p)` | move a value out of a place, leave the zero value | `03-move.md` |
-| `@if(c, a, b)` | a conditional expression | `04-generics.md` |
 | `@compileError(msg)` | report a compile error | this chapter |
 
 Grouped by what they are for: layout — `@sizeof`, `@alignof`, `@offset`;
 conversion — `@cast`; reflection — `@typeinfo`, `@typeof`, `@field`; packs —
-`@count`; ownership — `@take`; expressions — `@if`; comptime — `@compileError`.
+`@count`; ownership — `@take`; comptime — `@compileError`. A conditional is
+ordinary `if` (`10-iteration.md`), not a builtin.
 
 What the standard library provides is not a builtin: `print` and `close` are
 ordinary functions reached through an ordinary path (`11-namespaces.md`).

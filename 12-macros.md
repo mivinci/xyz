@@ -1,7 +1,8 @@
 # Macros
 
-This chapter continues `08-reflection.md`. It records why xyz has **no
-user-defined macro system**, and what the built-in `#` macros are for.
+This chapter continues `08-reflection.md`. It records why xyz has, **so far**, no
+user-defined macro system, and what the built-in `#` macros are for. The
+conclusion is not settled — see the open items at the end.
 
 ## No macro system
 
@@ -65,9 +66,9 @@ Two `#` macros stay, because none of the above can do their job:
 | `#repr(packed)` / `#repr(align(N))` | changes layout (`02-layout.md`) | layout is not a trait |
 | `#assert` | compile-time assertion | not a declaration |
 
-They are fixed in number and defined by the language. There is no way to add
-one, and no `derive`: a marker trait such as `Copy` is implemented by hand
-(`05-traits.md`).
+They are fixed in number and defined by the language. As it stands there is no
+way to add one, and no `derive`: a marker trait such as `Copy` is implemented by
+hand (`05-traits.md`).
 
 ## If this changes
 

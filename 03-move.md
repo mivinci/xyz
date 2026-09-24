@@ -20,7 +20,7 @@ compiler accepts it only when every field (or element) is itself `Copy`:
 
 ```rust
 struct Point {
-  x: u32,
+  mut x: u32,
   y: u32,
 }
 
@@ -51,9 +51,9 @@ let b = a;   // ✅ the elements are Copy
 ## Moving Out of a Place
 
 A move can only start from a **binding**. Reading a whole non-Copy value out of
-a place — behind `*p`, a field, or an index — is a compile error: the source is
-memory that any number of pointers may alias, so the compiler could never mark
-it as moved for everyone:
+a place — behind `*p`, a field, or an index — is a compile error: a place does
+not own the value, a binding does, and whoever owns it still expects a legal
+value to be there. `@take` (below) is the one way around this:
 
 ```rust
 struct Big { a: u32, b: u32 }
@@ -117,7 +117,14 @@ moves is what you wrote.
 ## Drop
 
 A type that owns a resource implements `Drop`: its destructor runs when the
-binding that owns the value reaches the end of its scope.
+binding that owns the value reaches the end of its scope. The running example is
+a file handle:
+
+```rust
+struct File {
+  mut fd: i32,
+}
+```
 
 `Drop` and `Copy` are mutually exclusive. A `Copy` assignment duplicates the
 bits, so both bindings would carry the same handle and the destructor would run
@@ -138,19 +145,19 @@ already dead, so nothing runs for it at the end of the scope.
 ### Assignment
 
 Where a `Drop` value is written also matters, because the old value must be
-destructed exactly once. Writing through a binding, or a place the compiler can
-trace back to one, is fine; writing through a pointer is not — any number of
-pointers may alias the memory, so the owner of the old value is unknown:
+destructed exactly once. Writing through a binding, or through a `*mut T`, is
+fine — a `*mut T` is exclusive (`01-types.md`), so the old value has exactly one
+owner and can be destructed in place:
 
 ```rust
 let mut x = File{ fd: 3 };
 
 x = File{ fd: 4 };   // ✅ the old value is destructed first
-x.fd = 5;            // ✅ writing a Copy field is an ordinary write
+x.fd = 5;            // ✅ File::fd is mut — writing a field does not destruct
 
 let p: *mut File = &mut x;
 
-*p = File{ fd: 6 };  // ❌ cannot destruct through a pointer
+*p = File{ fd: 6 };  // ✅ p is exclusive, so the old value is destructed
 ```
 
 ### Unions Forget
@@ -187,16 +194,15 @@ is the job of `@take`.
 
 `@take(p)` moves the value out of the place `p` points at — `p` is a `*mut T` —
 and immediately writes the zero value back. It is the one sanctioned way around
-the move-out restriction, and it is sound because the memory always holds a
-legal value — either the original or the zero — so aliases that keep pointing at
-it simply see the zero value:
+the move-out restriction. The zero is what makes it safe: `p` does not own the
+place, and whoever does will still look at it — and destruct it. A zero value
+survives that; a moved-out one would not.
 
 ```rust
 let mut a = File{ fd: 3 };
 let p: *mut File = &mut a;
-let q: *mut File = &mut a;
 
-let v = @take(p);   // v owns fd 3; *p and *q now hold the zero value
+let v = @take(p);   // v owns fd 3; *p — and so a — now holds the zero value
 
 // end of the scope: destructing the zero File is a no-op,
 // v is destructed exactly once and closes fd 3

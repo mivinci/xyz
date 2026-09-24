@@ -24,7 +24,7 @@ Read them in order; each chapter opens by naming the one it continues.
 | [09-match.md](./09-match.md) | pattern matching |
 | [10-iteration.md](./10-iteration.md) | `Iterator`, `while`, `for`, `if`, `return` |
 | [11-namespaces.md](./11-namespaces.md) | a directory is a namespace, `use` |
-| [12-macros.md](./12-macros.md) | why there is no user-defined macro system |
+| [12-macros.md](./12-macros.md) | the case against a user-defined macro system (not settled) |
 
 ## Notation
 
@@ -34,10 +34,31 @@ Read them in order; each chapter opens by naming the one it continues.
   parameter. There is one rule, not one per position.
 - ✅ and ❌ in an example mean it does or does not compile
 
+## What xyz guarantees
+
+There is no borrow checker and no reference type — one pointer family, and
+lifetimes nowhere — so the guarantees are uneven on purpose:
+
+- **Guaranteed statically.** No use after move, no double free from a move, no
+  write through a shared pointer, no move out of a borrowed place, no dropping
+  through a pointer that is not known to be exclusive.
+- **Promised, not proven.** Exclusivity and non-dangling hold only where the
+  compiler can see them — within a function. Across a function boundary there is
+  no lifetime information, so they are conventions: caught by the runtime checks
+  in `debug`, undefined behaviour in `release`. This is the same bargain a slice
+  makes (`01-types.md`).
+- **Not addressed.** Data races, iterator invalidation, and anything else that
+  would need aliasing to be tracked across the whole program.
+
+The shape is Rust's ownership — moves, `Copy`, `Drop`, destructors inserted
+statically — with Zig's answer to aliasing, plus a few things neither has: `mut`
+as part of the type, specialization ordered by shape pattern and checked where
+the impls are declared, and compile-time reflection in place of a macro system.
+
 ## Status
 
 A design in progress. The specification is internally consistent at the moment;
-`REVIEW.md` records what has been reviewed and how each point was settled.
+`review/` holds one file per review, named `review-YYYYMMDD-NN.md`.
 
 Still open:
 

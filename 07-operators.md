@@ -76,7 +76,7 @@ A bound is what makes an operator available in generic code:
 
 ```rust
 fn max<T: Ord>(a: T, b: T) -> T {
-  @if(a > b, a, b)   // `>` is legal because T: Ord
+  if a > b { a } else { b }   // `>` is legal because T: Ord
 }
 ```
 
