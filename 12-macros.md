@@ -6,8 +6,8 @@ conclusion is not settled — see If this changes below.
 
 ## No macro system
 
-A macro earns its place in most languages by generating code per type.
-Reflection makes that unnecessary here, so xyz has none.
+A macro earns its place in most languages by generating code per type. Generics
+and reflection make that unnecessary here, so xyz has none.
 
 ### One impl instead of one per type
 

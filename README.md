@@ -11,7 +11,8 @@ placeholder for the same reason.
 
 Each chapter opens by naming what it continues. The dependencies are not a chain
 — `09` and `11` follow from `01` alone, and `10` needs both `05` and `09` — but
-the order below is one valid way through them.
+the order below is one valid way through them. `01-types.md` also states the
+notation the examples use.
 
 | file | continues | what it defines |
 | --- | --- | --- |
@@ -27,14 +28,6 @@ the order below is one valid way through them.
 | [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `while`, `for`, `if`, `return` |
 | [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use` |
 | [12-macros.md](./12-macros.md) | `08` | the case against a user-defined macro system (not settled) |
-
-## Notation
-
-- `@xxx` is a builtin function — the full list is in `08-reflection.md`
-- `#xxx` is a built-in construct — there are two, listed in `12-macros.md`
-- `mut` marks **the slot right after it**: a variable, a field, an element, or a
-  parameter. There is one rule, not one per position.
-- ✅ and ❌ in an example mean it does or does not compile
 
 ## What xyz guarantees
 
@@ -56,10 +49,15 @@ lifetimes nowhere — so the guarantees are uneven on purpose:
 - **Not addressed.** Data races, iterator invalidation, and anything else that
   would need aliasing to be tracked across the whole program.
 
+## Where it comes from
+
 The shape is Rust's ownership — moves, `Copy`, `Drop`, destructors inserted
-statically — with Zig's answer to aliasing, plus a few things neither has: `mut`
-as part of the type, specialization ordered by shape pattern and checked where
-the impls are declared, and compile-time reflection in place of a macro system.
+statically — with Zig's answer to aliasing and to compile-time execution, which
+is what lets reflection stand in for a macro system. The generics are C++'s:
+variadic packs, specialization ordered by shape pattern, and a type predicate
+such as `is_same` written as a struct with two impls. What none of them has is
+how the pieces are pinned down: overlap is checked where the impls are declared,
+not where they are instantiated, and `mut`, though part of the type, is not deep.
 
 ## Status
 
