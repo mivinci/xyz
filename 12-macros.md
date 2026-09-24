@@ -2,7 +2,7 @@
 
 This chapter continues `08-reflection.md`. It records why xyz has, **so far**, no
 user-defined macro system, and what the built-in `#` constructs are for. The
-conclusion is not settled — see the open items at the end.
+conclusion is not settled — see If this changes below.
 
 ## No macro system
 

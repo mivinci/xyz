@@ -51,7 +51,9 @@ match @typeinfo<T>() {
 }
 ```
 
-The field name is the binding name. Fields left out are ignored; `{ .. }`
+The field name is the binding name — there is no renaming, so `Int { bits: b }`
+is not defined, and a pattern reads exactly like the declaration it mirrors.
+Fields left out are ignored; `{ .. }`
 ignores every field, and naming some plus `..` ignores the rest:
 
 ```rust
@@ -72,6 +74,23 @@ match @typeinfo<T>() {
 }
 ```
 
+### Or-patterns
+
+`|` joins alternatives that share one arm, and the arm covers whichever of them
+fits:
+
+```rust
+match @typeinfo<T>() {
+  Int { .. } | Float { .. } => "number",
+  Struct { fields, .. }     => "struct",
+  _                         => "other",
+}
+```
+
+Every alternative has to bind the same names with the same types — `Some(x) |
+Other(x)` is fine, `Some(x) | Other(y)` is not, because the body has one spelling
+to refer to them by.
+
 ### Tuple
 
 A tuple is destructured element by element:
@@ -87,6 +106,31 @@ tuple pattern always fits and needs no wildcard arm of its own.
 
 A pattern also appears wherever a value is bound — `let`, `for`, and
 `while let` (`10-iteration.md`) — not only in `match`.
+
+### No guards, no ranges, no literal patterns
+
+A pattern destructures; it does not test. There are no guards
+(`Some(v) if v > 0`), no ranges (`1..=5`), and no literal patterns — `0`, `1`,
+`true` — so an integer or a `bool` is not a scrutinee. Testing is what `if` is
+for, and `if` is an expression (`10-iteration.md`):
+
+```rust
+let sign = if n > 0 { 1 } else if n < 0 { -1 } else { 0 };
+
+match o {
+  Some(v) => if v > 0 { "positive" } else { "not" },
+  None    => "none",
+}
+```
+
+A value that is really a set of cases — an opcode, a state, an error code — is
+modelled as an enum with a tag type and explicit discriminants (`01-types.md`),
+which `match` covers exhaustively. That is strictly better than matching the
+integer: an integer can never be covered, so it would always need `_`.
+
+Keeping testing out of patterns is what keeps exhaustiveness simple: an arm
+covers its pattern unconditionally, so covering every variant — or using `_` —
+is the whole rule.
 
 ## Exhaustiveness
 
@@ -115,7 +159,8 @@ let _ = v;           // matches, binds nothing
 
 An identifier is the simplest pattern: it matches anything and binds the whole
 value, so `let x = v;` needs no rule of its own. `_` discards — `let (a, _) = t;`
-keeps only the first element.
+keeps only the first element. Since a pattern binds under the field's own name, a
+binding that wants another name does not destructure — `let x = s.a;`.
 
 A binding pattern must be **irrefutable** — it always fits. The type fixes a
 tuple's arity and a struct's field names, so both are checked at compile time:
@@ -141,9 +186,3 @@ let first = match @typeinfo<T>() {
 
 `match` is an ordinary expression, so it is compile-time callable exactly when the
 scrutinee is compile-time known — and `@typeinfo<T>()` is the prime scrutinee.
-
-## Open items
-
-- Renaming a bound field (`Int { bits: b }`) — the field name is the binding.
-- Or-patterns (`A | B => ...`), ranges, and guards.
-- Matching integers and `bool` (C-style `switch`).

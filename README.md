@@ -70,5 +70,5 @@ Still open:
 
 - Whether a macro system should exist at all — `12-macros.md` currently argues
   against one, but the conclusion is deliberately left open
-- The open items at the end of `11-namespaces.md`: a name for the root,
-  relative paths, glob imports, external libraries
+- The one open item left at the end of `11-namespaces.md`: external libraries,
+  and how their paths enter the root
