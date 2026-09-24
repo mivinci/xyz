@@ -2,10 +2,11 @@
 
 This chapter continues `07-operators.md`.
 
-Compile-time execution is the ordinary language evaluated by the compiler.
 This chapter defines the model, `std::meta::TypeInfo`, and the query builtins.
 
-## Comptime
+## Compile-time execution
+
+Compile-time execution is the ordinary language evaluated by the compiler.
 
 Any expression whose inputs are compile-time known is evaluated at compile
 time, with ordinary semantics. Two restrictions apply: inputs must be
@@ -30,37 +31,50 @@ fn twice(x: u32) -> u32 {
 let n = io::read_u32();          // runtime
 let four = twice(twice(n));      // runtime call — the argument is not known
 
-#assert(twice(21) == 42);       // comptime call, same function
+#assert(twice(21) == 42);       // compile-time call, same function
 ```
 
-Functions with control flow become comptime-callable once that control flow
+Functions with control flow become compile-time callable once that control flow
 is defined — `match` (`09-match.md`) and the loops (`10-iteration.md`).
 
-## Comptime parameters
+## Const parameters
 
 Implicit evaluation covers the case where a value happens to be known; a
-`comptime` parameter states the requirement — that an argument *must* be
-compile-time known. It is the language's one explicit comptime marker, and it
+`const` parameter states the requirement — that an argument *must* be
+compile-time known. It is the language's one explicit const marker, and it
 appears in three positions — on a parameter, on an `if`, and on a `for`:
 
 | where | requires | effect |
 | --- | --- | --- |
-| `comptime name: []u8` | the argument is compile-time known | usable wherever a compile-time value is required |
-| `comptime if cond` | the condition is compile-time known | the untaken block is discarded before type checking (`04-generics.md`) |
-| `comptime for x in xs` | the iterated value is compile-time known | the loop is unrolled; `x` is compile-time known (`10-iteration.md`) |
+| `const x: T` in a parameter list | the argument is compile-time known | usable wherever a compile-time value is required |
+| `const if cond` | the condition is compile-time known | the untaken block is discarded before type checking (`04-generics.md`) |
+| `const for x in xs` | the iterated value is compile-time known | the loop is unrolled; `x` is compile-time known (`10-iteration.md`) |
 
-An ordinary `if` or `for` whose input happens to be compile-time known is
-evaluated at compile time too; the `comptime` form is what turns that into a
-requirement.
+A parameter list means any of them — a function, an `impl`, a `struct`, or a
+trait. On a type parameter list it marks a *value* parameter: one that has to be
+a compile-time value rather than a type, which is what an array length is:
 
 ```rust
-fn field_offset<T>(comptime name: []u8) -> usize {
+impl<T, const N: usize> IntoIterator for [N]T { ... }
+```
+
+An ordinary `if` or `for` whose input happens to be compile-time known is
+evaluated at compile time too; the `const` form is what turns that into a
+requirement.
+
+`const` is part of the signature: `fn f(x: u32)` and `fn f(const x: u32)`
+are distinct overloads. Any type may be marked `const`; a type whose value
+cannot exist at compile time (a `File`, say) is rejected by the no-effects
+rule, not by a special const-type check.
+
+```rust
+fn field_offset<T>(const name: []u8) -> usize {
   @offset<T>(name)   // name is compile-time known here
 }
 ```
 
-A `comptime` parameter can be used anywhere a compile-time value is required:
-`@field`, `@offset`, `comptime if`, an array length, or another `comptime`
+A `const` parameter can be used anywhere a compile-time value is required:
+`@field`, `@offset`, `const if`, an array length, or another `const`
 argument.
 At the call site the argument must be compile-time known; a runtime value is
 rejected there, not inside the body:
@@ -70,16 +84,11 @@ let n = read_string();          // runtime
 field_offset<Point>(n);        // ❌ n is not compile-time known
 ```
 
-`comptime` is part of the signature: `fn f(x: u32)` and `fn f(comptime x: u32)`
-are distinct overloads. Any type may be marked `comptime`; a type whose value
-cannot exist at compile time (a `File`, say) is rejected by the no-effects
-rule, not by a special comptime-type check.
-
-A `comptime` parameter also carries a value that is part of a type — an array
+A `const` parameter also carries a value that is part of a type — an array
 length, say:
 
 ```rust
-impl<T, comptime N: usize> IntoIterator for [N]T { ... }   // 10-iteration.md
+impl<T, const N: usize> IntoIterator for [N]T { ... }   // 10-iteration.md
 ```
 
 ## TypeInfo
@@ -100,7 +109,7 @@ enum TypeInfo {
   Array   { len: usize, child: type, mutable: bool },       // [N]T / [N]mut T
   Struct  { fields: []Field, repr: Repr },
   Union   { fields: []Field, repr: Repr },
-  Enum    { tag: type, variants: []EnumField },            // ?T lands here
+  Enum    { tag: type, variants: []EnumField },            // Option<T>; ?T lands here when T has no niche
   Tuple   { fields: []Field },                             // (A, B, ...) — () has none; names are empty
   Voidptr,                                                 // voidptr
 }
@@ -137,10 +146,21 @@ let a: TypeInfo = @typeinfo<u32>();   // Int { bits: 32, signed: false }
 let b: TypeInfo = @typeinfo(42);      // Int { bits: 32, signed: true }
 ```
 
-`?T` is sugar for `Option<T>`, and `Option<T>` is an enum, so `@typeinfo<?T>()`
-is an `Enum`, not a distinct `Optional` variant. There is no special case:
-the nullable modifier is visible only on pointers and slices, where it is a
-field of the variant.
+`?T` is `Option<T>`, so `None`, `Some` and `match` work on it whatever `T` is.
+What the type *is* underneath depends on `T`, though, and `@typeinfo` reports
+that:
+
+- for a pointer or a slice, the compiler puts the empty case in a niche — the
+  null pointer — so `@typeinfo<?*T>()` is a `Pointer` with `optional: true` and
+  `@typeinfo<?[]T>()` is a `Slice` with `optional: true`. The value is still one
+  or two words (`01-types.md`), not an `Option` wrapped around it.
+- for anything else there is no niche to use, so the type really is
+  `Option<T>`: `@typeinfo<?u32>()` is an `Enum`.
+
+There is no `Optional` variant of `TypeInfo`; nullability either rides along in a
+field or shows up as the enum it is. `E?T` — `Result<T, E>` — follows the same
+split: `@typeinfo<E?*mut u32>()` is a `Pointer` with `optional: true`, while
+`@typeinfo<E?u32>()` is an `Enum` (`01-types.md`).
 
 `()` is the unit type — there is no `void` (`01-types.md`) — so `@typeinfo<()>()`
 is a `Tuple` with no fields, not a distinct `Void` variant. `voidptr` keeps its
@@ -250,7 +270,7 @@ let mut p = Point{ x: 0, y: 0 };
 
 The name must be compile-time known, so the field's type and offset are
 resolved during compilation. Serialization walks `@typeinfo` for the field
-list and uses `@field` per field; the walk is a `comptime for`
+list and uses `@field` per field; the walk is a `const for`
 (`10-iteration.md`), which is what makes each name compile-time known.
 `@offset<T>("f")` stays the layout query (`02-layout.md`).
 
@@ -282,7 +302,7 @@ Predicate structs are `snake_case`, ordinary structs are `PascalCase`:
 ## Builtins
 
 `@xxx` is a builtin — a function the language provides, not one written in it.
-There are eleven, and each is defined where it belongs:
+There are ten, and each is defined where it belongs:
 
 | builtin | what it does | defined in |
 | --- | --- | --- |
@@ -295,12 +315,12 @@ There are eleven, and each is defined where it belongs:
 | `@field(v, "name")` | the address of field `name` | this chapter |
 | `@count(...Ts)` | pack length | `04-generics.md` |
 | `@take(p)` | move a value out of a place, leave the zero value | `03-move.md` |
-| `@if(c, a, b)` | a conditional expression | `04-generics.md` |
 | `@compileError(msg)` | report a compile error | this chapter |
 
 Grouped by what they are for: layout — `@sizeof`, `@alignof`, `@offset`;
 conversion — `@cast`; reflection — `@typeinfo`, `@typeof`, `@field`; packs —
-`@count`; ownership — `@take`; expressions — `@if`; comptime — `@compileError`.
+`@count`; ownership — `@take`; const — `@compileError`. A conditional is
+ordinary `if` (`10-iteration.md`), not a builtin.
 
 What the standard library provides is not a builtin: `print` and `close` are
 ordinary functions reached through an ordinary path (`11-namespaces.md`).
@@ -322,11 +342,11 @@ value slots:
 
 ## Error Reporting
 
-`@compileError(msg)` reports a compile error from comptime code. It is the
+`@compileError(msg)` reports a compile error from compile-time code. It is the
 base for library-defined assertions and contracts:
 
 ```rust
-comptime if @count(...Ts) > 16 {
+const if @count(...Ts) > 16 {
   @compileError("too many arguments");
 }
 ```

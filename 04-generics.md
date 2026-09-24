@@ -30,6 +30,30 @@ A type parameter may be used by value (`Some(T)`) or behind a pointer
 (`*mut T`); the layout of the containing type is derived per instantiation,
 so no special mechanism is needed.
 
+### Defaults
+
+A type parameter may be given a default, used whenever the argument is left out:
+
+```rust
+trait Add<Rhs = Self> { ... }
+
+struct Table<K, V = u32> { ... }
+```
+
+A default may name a parameter declared before it, and in a trait it may be
+`Self`. Defaults belong to the declaration: a trait, a struct, an enum, a union,
+or a type alias. A function and an `impl` do not carry them — a function's type
+parameters come from its arguments, and an `impl` only repeats the shape of the
+trait it implements.
+
+```rust
+impl Add for Vec3 { ... }        // Add<Vec3> — the default is Self
+impl Add<u32> for Vec3 { ... }   // given explicitly
+```
+
+`07-operators.md` is written against this: `Add<Rhs = Self>` is what lets an impl
+say `impl Add for Vec3`.
+
 ## Monomorphization
 
 A generic function is instantiated as a separate copy for every concrete
@@ -56,7 +80,7 @@ per-instantiation:
 
 ```rust
 fn max<T: Ord>(a: T, b: T) -> T {
-  @if(a > b, a, b)   // `>` is legal because T: Ord
+  if a > b { a } else { b }   // `>` is legal because T: Ord
 }
 ```
 
@@ -241,14 +265,14 @@ type in the pack to implement `Show`.
 
 ### Compile-Time Recursion
 
-`comptime if` is the compile-time conditional: an ordinary `if`
+`const if` is the compile-time conditional: an ordinary `if`
 (`10-iteration.md`) whose condition must be compile-time known. The untaken
 block is discarded before type checking, so it may contain code that only
 compiles for some instantiations:
 
 ```rust
 fn sum<...Ts>(ts: ...Ts) -> i64 {
-  comptime if @count(...Ts) == 0 {
+  const if @count(...Ts) == 0 {
     0
   } else {
     @cast<i64>(ts[0]) + sum(...ts[1..])
@@ -285,7 +309,7 @@ error.
 ### Instantiation-Time Checking
 
 Ordinary generics are checked once, at the declaration. Variadic code cannot
-be: `comptime if` branches and pack builtins only make sense against a concrete
+be: `const if` branches and pack builtins only make sense against a concrete
 pack.
 A variadic function is therefore type-checked per instantiation, and an error
 inside the recursion is reported at the call site, with the chain of
@@ -300,5 +324,5 @@ A pack can implement a trait for tuples of every arity:
 impl<...Ts: Show> Show for (...Ts) { ... }
 ```
 
-The method bodies recurse the same way `sum` does — `comptime if` on the count,
+The method bodies recurse the same way `sum` does — `const if` on the count,
 `ts[0]` and `...ts[1..]` to peel, the empty tuple to stop.

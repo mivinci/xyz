@@ -93,7 +93,7 @@ consuming it:
 trait IntoIterator {
   type Item;
   type IntoIter: Iterator<Item = Self::Item>;
-  fn into_iter(self) -> Self::IntoIter;
+  fn into_iter(self: Self) -> Self::IntoIter;
 }
 ```
 
@@ -109,7 +109,7 @@ conversion:
 impl<I: Iterator> IntoIterator for I {
   type Item = I::Item;
   type IntoIter = I;
-  fn into_iter(self) -> I { self }
+  fn into_iter(self: Self) -> I { self }
 }
 ```
 
@@ -119,20 +119,20 @@ index — a slice would borrow from a value that is about to die, and returning 
 slice of a local array is already a compile error (`01-types.md`):
 
 ```rust
-struct ArrayIter<T, comptime N: usize> {
+struct ArrayIter<T, const N: usize> {
   arr: [N]mut T,    // moved in — a fresh slot may raise writability (01-types.md)
   mut index: usize,
 }
 
-impl<T, comptime N: usize> IntoIterator for [N]T {
+impl<T, const N: usize> IntoIterator for [N]T {
   type Item = T;
   type IntoIter = ArrayIter<T, N>;
-  fn into_iter(self) -> ArrayIter<T, N> {
+  fn into_iter(self: Self) -> ArrayIter<T, N> {
     ArrayIter<T, N>{ arr: self, index: 0 }
   }
 }
 
-impl<T, comptime N: usize> Iterator for ArrayIter<T, N> {
+impl<T, const N: usize> Iterator for ArrayIter<T, N> {
   type Item = T;
   fn next(self: *mut Self) -> ?T {
     if self.index == N {
@@ -157,24 +157,24 @@ what `&arr` is, since an array never decays (`01-types.md`). The iterator is
 then a slice over the array's own storage, so nothing moves:
 
 ```rust
-impl<T, comptime N: usize> IntoIterator for *[N]T {
+impl<T, const N: usize> IntoIterator for *[N]T {
   type Item = *T;
   type IntoIter = []T;
-  fn into_iter(self) -> []T {
+  fn into_iter(self: Self) -> []T {
     []T { ptr: &(*self)[0], len: N }
   }
 }
 
-impl<T, comptime N: usize> IntoIterator for *mut [N]T {
+impl<T, const N: usize> IntoIterator for *mut [N]mut T {
   type Item = *mut T;
   type IntoIter = []mut T;
-  fn into_iter(self) -> []mut T {
+  fn into_iter(self: Self) -> []mut T {
     []mut T { ptr: &mut (*self)[0], len: N }
   }
 }
 ```
 
-The length comes from the type: `N` is a `comptime` value parameter
+The length comes from the type: `N` is a `const` value parameter
 (`08-reflection.md`), and `ptr` and `len` are a slice's two fields
 (`01-types.md`).
 
@@ -264,7 +264,7 @@ Whether the container is used up depends on what is iterated:
 | ---- | -------------- | --- | -------- |
 | `for x in arr` | `[N]T` — an owned array | `T` | ✅ the array is consumed |
 | `for x in &arr` | `*[N]T` | `*T` | ❌ |
-| `for x in &mut arr` | `*mut [N]T` | `*mut T` | ❌ |
+| `for x in &mut arr` | `*mut [N]mut T` | `*mut T` | ❌ |
 | `for x in s`, `s: []T` | `[]T` | `*T` | ❌ |
 | `for x in s`, `s: []mut T` | `[]mut T` | `*mut T` | ❌ |
 
@@ -279,13 +279,27 @@ for a in arr { use(a); }     // a: u32 — arr is consumed
 for a in &arr { use(*a); }   // a: *u32 — arr is still there
 ```
 
-### Comptime For
+Mutable iteration yields `*mut T`, and a mutable pointer cannot grant permission
+the type does not give (`01-types.md`), so the elements have to be `mut` — the
+`let mut a = [3]mut u32{}` row of the table there:
 
-`comptime for` requires the iterated value to be compile-time known and
+```rust
+let mut arr = [3]mut u32{1, 2, 3};
+
+for a in &mut arr { *a = 0; }   // a: *mut u32
+```
+
+With a plain `[3]u32`, `*mut [N]mut T` does not match, and since `*mut [N]T` also
+matches `*[N]T` (`04-generics.md`) the read-only impl is what applies: `x` is
+`*u32` and `*x = v` is rejected — the same answer `arr[0] = v` gets.
+
+### Const For
+
+`const for` requires the iterated value to be compile-time known and
 unrolls the loop during compilation:
 
 ```rust
-comptime for f in fields {
+const for f in fields {
   ...
 }
 ```
@@ -296,9 +310,9 @@ compile-time known. That is what lets a reflected name feed `@field`
 (`08-reflection.md`), which requires one.
 
 What is unrolled is the iteration, not the body: each copy of the body is
-emitted where the loop stood, as ordinary runtime code. `comptime for` is
+emitted where the loop stood, as ordinary runtime code. `const for` is
 therefore not sugar for `while let` — no loop survives into the generated
-code — and a `comptime for` over a value that is not compile-time known is a
+code — and a `const for` over a value that is not compile-time known is a
 compile error.
 
 ## If
@@ -411,16 +425,17 @@ pointer does not.
 
 ## Serialization
 
-With `match`, `@field`, and `for`, a deserializer reads a struct field by
+With `match`, `@field`, and `const for`, a deserializer fills a struct field by
 field:
 
 ```rust
 fn deserialize<T>(s: []u8) -> T {
+  let doc = parse(s);          // the bytes become a tree of values — no T yet
   match @typeinfo<T>() {
     Struct { fields, .. } => {
       let mut v = T{};                 // zero-init
-      comptime for f in fields {                // f: *Field — a borrow
-        *@field(v, f.name) = parse_field(f, s);
+      const for f in fields {          // f: *Field — a borrow
+        *@field(v, f.name) = doc.get<$$f.type>(f.name);
       }
       v
     }
@@ -428,3 +443,25 @@ fn deserialize<T>(s: []u8) -> T {
   }
 }
 ```
+
+The input is consumed once, before the `match`; the `match` only routes on the
+shape of `T`. `$$f.type` splices the field's type reference back into a type and
+`f.name` is compile-time known because the loop is unrolled — the two things the
+assignment needs (`08-reflection.md`).
+
+A format that is not self-describing — a binary layout with no tags — cannot be
+parsed before `T` is known, since how long a field is depends on its type. There
+the parse has to move with the loop, carrying the rest of the input along:
+
+```rust
+let mut cur = s;
+const for f in fields {
+  let (x, rest) = parse_field<$$f.type>(cur);
+  *@field(v, f.name) = x;
+  cur = rest;
+}
+```
+
+Writing a field is governed by its `mut` (`08-reflection.md`), so this fills in a
+`T` whose fields are declared `mut`. A type with immutable fields cannot be built
+this way — it has to be produced whole, by a constructor or a literal.

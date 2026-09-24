@@ -1,6 +1,6 @@
 # Types
 
-This chapter requires that you've already known that `@xxx` is a builtin function and `#xxx` is a macro.
+This chapter continues `00-preliminaries.md`.
 
 ## Primitives
 
@@ -103,14 +103,14 @@ a[0] = 42;
 elements owned by something else, so it never allocates. The two parts are
 named — `s.ptr` is `*T` (`*mut T` for `[]mut T`) and `s.len` is a `usize`. They
 behave like `mut` struct fields, so both can be written; the way to advance the
-view, though, is to slice it — `s = s[1..]` below. Neither touches the elements
+view, though, is to slice it — `s[1..]`, below. Neither touches the elements
 the slice borrows, so a `[]T` whose elements cannot be written may still be
 advanced. Writing the slice itself — `s = ...` — is governed by the binding's
 `mut`, exactly as `p = ...` is.
 
 ```rust
 let a = [3]u32{1, 2, 3};
-let s: []u32 = a;   // [3]u32 → []u32
+let s: []u32 = a[..];   // the whole array, as a slice
 
 #assert(s[0] == 1);
 #assert(s[2] == 3);
@@ -120,7 +120,7 @@ As with arrays, `mut` marks whether the elements can be written:
 
 ```rust
 let a = [3]mut u32{1, 2, 3};
-let s: []mut u32 = a;
+let s: []mut u32 = a[..];
 
 s[0] = 9;   // ✅ the elements are mut
 ```
@@ -133,6 +133,8 @@ elements:
 let rest = s[1..];   // []u32 — the same elements, one shorter
 ```
 
+The same range notation over an array makes a slice of it.
+
 A range that leaves the slice is caught by the runtime checks in `debug` and is
 undefined behaviour in `release`, exactly as an out-of-range index is. The same
 `[a..b]` works on a tuple (`04-generics.md`).
@@ -140,14 +142,16 @@ undefined behaviour in `release`, exactly as an out-of-range index is. The same
 There is no borrow checker. A slice is rejected at compile time only when the
 compiler can see that it outlives what it borrows — returning a slice of a local
 array, say. Across function boundaries there is no lifetime information, so a
-dangling slice falls to the runtime checks in `debug` mode and is undefined
-behaviour in `release`.
+dangling slice is undefined behaviour. A `debug` build may catch some of these;
+how, and how many, is up to the implementation — the language promises nothing
+here. See What xyz guarantees in `README.md`.
 
-An array never decays to a plain pointer. To get a `*T`, take the address of an
-element explicitly:
+An array never decays — not to a plain pointer, and not to a slice. Both have to
+be asked for by name:
 
 ```rust
-let p: *u32 = &a[0];
+let p: *u32 = &a[0];   // a pointer to one element
+let s: []u32 = a[..];  // a slice of the whole array
 ```
 
 ## Struct
@@ -346,9 +350,18 @@ let c = 42;
 let r: *mut i32 = &mut c;  // ❌ the binding c is not mut
 ```
 
-`*p` reads the pointee and `*p = v` writes it. A pointer is dereferenced as far
-as it needs to be to reach a member, so `sp.b` is `(*sp).b` — there is no `->` —
-and a method is called the same way (`05-traits.md`):
+`*p` is a place — a location, not a value — in the same way that `x` and `x.f`
+are. Three things can be done with one:
+
+```rust
+let x = *p;    // read
+*p = v;        // write
+p.f, p[0]      // reach a member
+```
+
+A pointer is dereferenced as far as it needs to be to reach a member, so `sp.b`
+is `(*sp).b` — there is no `->` — and a method is called the same way
+(`05-traits.md`):
 
 ```rust
 let mut s = P{ a: 1, b: 2 };
@@ -357,6 +370,52 @@ let sp: *mut P = &mut s;
 sp.b = 3;   // ✅ P::b is mut
 sp.a = 3;   // ❌ P::a is not mut
 ```
+
+Reading and writing are both restricted:
+
+- a read, `let x = *p`, moves a value out of a place, and a move can only start
+  from a binding — so it is a compile error unless `T` is `Copy`. `@take`
+  (`03-move.md`) is how a non-`Copy` value comes out.
+- a write, `*p = v`, needs `p: *mut T`. It destructs the value already there,
+  which is sound because a `*mut T` is exclusive (Exclusivity below).
+
+`&*p` is `p` itself.
+
+`*mut T` grants write access to the pointee as a whole — `*p = v`. It does not
+unlock the interior: whether `sp.a`, `sp[0]` or anything else inside can be
+written is decided by the type, exactly as it is for a binding. Taking a mutable
+pointer is therefore not a way to obtain permission the type does not give.
+
+### Exclusivity
+
+A `*mut T` is exclusive: while one is live, nothing else may reach the value it
+points at — not the binding it was made from, and not another pointer to the same
+memory. That is what lets `*p = v` destruct the old value in place: there is one
+way to reach it, so it has exactly one owner.
+
+```rust
+let mut x = File{ fd: 3 };
+let p: *mut File = &mut x;
+
+x.fd;               // ❌ x is borrowed by p
+let q: *mut File = &mut x;   // ❌ x is already borrowed
+let r: *File = &x;           // ❌ likewise
+*p = File{ fd: 6 };          // ✅ the old value is destructed first
+```
+
+The check is static, and it is the same kind of check the move analysis makes
+(`03-move.md`): the compiler follows the pointers it can see. Across a function
+boundary there is no lifetime information, so there exclusivity is a promise
+rather than a proof: breaking it is undefined behaviour, and a `debug` build may
+or may not catch it. A slice makes the same bargain.
+
+A `*T` is not exclusive; any number of them may point at the same value. What
+they promise is only that the value cannot be written through them.
+
+A place reached through a pointer behaves like a borrow in Rust: neither language
+lets a non-`Copy` value move out of one, and both reach for the same tool —
+`@take` here, `mem::take` there. Exclusivity is what lets the write drop the old
+value, exactly as it does there.
 
 A pointer can be walked, but a slice is usually the better tool: `s[1..]` moves
 a whole view at once and cannot leave the sequence (Slice above) — the slice
@@ -388,9 +447,8 @@ The order is unspecified unless both point into the same array — as in C.
 Equality, `==` and `!=`, works on any two pointers of the same type; it is
 already what a `?*T` check compares against `None`.
 
-Holding a `*T` and a `*mut T` to the same value at the same time is allowed,
-exactly as in C — an immutable pointer does not promise that the value stays
-unchanged.
+Holding several `*T` to the same value is fine. Holding a `*T` and a `*mut T` to
+it at the same time is not — a `*mut T` is exclusive (Exclusivity above).
 
 `@sizeof(*T)` and `@sizeof(*mut T)` are equal, and returning the address of a
 local is a compile error.
@@ -398,8 +456,9 @@ local is a compile error.
 ### Nullability
 
 `?` is a general modifier: `?T` is "either a `T` or nothing", so `?u32` and
-`?*mut i32` are both valid. A nullable pointer must be checked before it is used;
-after an explicit check it narrows to the nonnull type:
+`?*mut i32` are both valid. A `?T` must be checked before it is used. Comparing
+it against `None` narrows it to `T` in the branch where the comparison holds, in
+either direction:
 
 ```rust
 let p: ?*mut i32 = &mut b;
@@ -411,12 +470,78 @@ if p != None {
 *p = 8;     // ❌ outside the check, p is ?*mut i32 again
 ```
 
+```rust
+if p == None {
+  return;
+}
+
+*p = 7;     // ✅ p is *mut i32 from here on
+```
+
+Narrowing is the same for every `?T`, whether the empty case sits in a niche or
+in a real `Option` — `?u32` narrows to `u32` just as `?*mut i32` narrows to
+`*mut i32`. The check establishes only that the value is there; nothing about
+that depends on how the empty case is represented. `match` is always available
+instead:
+
+```rust
+match p {
+  Some(q) => *q = 7,
+  None => { },
+}
+```
+
 Types distinguish them: `is_same<?*i32, *i32>::value` is false.
 
-`?T` is sugar for `Option<T>`. When `T` has an unused bit pattern the compiler
-uses it as a niche, so `@sizeof(?*T)` equals `@sizeof(*T)` — the null pointer
-value represents the empty case. Types without a spare bit pattern carry a tag
-instead, so `?u32` is larger than `u32`.
+`?T` is `Option<T>`: nothing about `None`, `Some` or `match` differs from any
+other enum. What differs is the layout — when `T` has an unused bit pattern the
+compiler puts the empty case in that niche, so `@sizeof(?*T)` equals
+`@sizeof(*T)` and the null pointer value represents the empty case. Types
+without a spare bit pattern carry a tag instead, so `?u32` is larger than `u32`.
+Reflection reports the same split: `@typeinfo<?*T>()` is a `Pointer` with
+`optional: true`, while `@typeinfo<?u32>()` is an `Enum` (`08-reflection.md`).
+
+### Results
+
+`?` reads as "or". With a type in front of it, it names what the other case
+holds: `E?T` is `Result<T, E>` — a `T` or an `E` (`05-traits.md`):
+
+```rust
+let r: Error?u32 = Ok(3);
+```
+
+Narrowing works as it does above, against `Err`:
+
+```rust
+if r != Err {
+  use(r);   // ✅ r is u32 here
+}
+```
+
+To reach the error, match — as with any other enum:
+
+```rust
+match r {
+  Ok(v) => use(v),
+  Err(e) => use(e),
+}
+```
+
+### Propagation
+
+`f()?` evaluates to the value, or returns the error from the enclosing function.
+It is available only where the function's result is an `E?T` with the same `E`:
+
+```rust
+fn read(path: []u8) -> Error?Data {
+  let f = open(path)?;     // on Err, that Err is returned
+  let n = size_of(f)?;
+  ...
+}
+```
+
+When there is no sensible error to hand back, `panic` ends the program. It is an
+ordinary function in `std`, not a builtin (`11-namespaces.md`).
 
 `voidptr` is the opaque pointer type. It can neither be dereferenced nor walked
 — it has no element size — so `@cast` it to a concrete pointer type first:
@@ -448,6 +573,38 @@ enum X(u32) {
   E,
 }
 ```
+
+`enum X(u32)` names the tag type. Left out, the compiler uses the smallest
+unsigned integer that holds every variant, so `enum Ordering { Less, Equal,
+Greater }` has a `u8` tag.
+
+A variant carries a payload, or it does not. There are three shapes:
+
+```rust
+enum Shape {
+  Empty,                     // no payload
+  Circle(f32),               // positional
+  Rect { w: f32, h: f32 },   // named
+}
+```
+
+Values are assigned in order from 0, and `A = 10` sets one explicitly — the next
+variant continues from there. Payload variants follow the same rule and never
+need a value written.
+
+A payload is matched the way it is written: `Circle(r)` binds positionally,
+`Rect { w, h }` by name (`09-match.md`). `Option<T>` is an ordinary enum of this
+kind:
+
+```rust
+enum Option<T> {
+  None,
+  Some(T),
+}
+```
+
+A payload enum is laid out as its tag followed by a union of the payloads
+(`02-layout.md`).
 
 The variants are of type `X`, not of the underlying type, so `@cast` is needed
 to get the integer out:
@@ -500,6 +657,118 @@ let d = cr"hi\n";   // d: []u8 — backslash and `n`, then '\0'
 A raw literal cannot contain `"` — it is the delimiter. Write a quote as an
 escaped `\"` in a normal literal instead; there is no `r#"..."#` nesting.
 
+## Constants and statics
+
+A `const` is a compile-time value, not a slot. Reading it inlines the value, so
+it has no address and cannot be assigned to:
+
+```rust
+const MAX: usize = 1024;
+```
+
+Its initializer must be compile-time known, which is what lets `MAX` stand in
+wherever a compile-time value is required — an array length, a `const if`
+condition, an argument to `@offset`. A `const` may be written at the top level or
+inside a block.
+
+A `static` is a slot that lives for the whole program, and it does have an
+address. `mut` marks it writable, as it does for any other slot:
+
+```rust
+static TABLE: [4]u32 = [4]u32{1, 2, 3, 4};
+static mut HITS: u32 = 0;
+```
+
+An initializer must be compile-time known here as well, so no static is set up
+before another — and there is therefore no initialization order to worry about.
+
+Two things do not apply to statics, and this is the one place the language says
+so plainly:
+
+- **Exclusivity does not apply.** Any function may read or write a `static mut`,
+  and nothing checks or proves that only one of them does. Aliasing a static is
+  the programmer's problem, as it is in C.
+- **Statics are never destructed.** A destructor has to run exactly once
+  (`03-move.md`), and there is no moment for that at the end of a program, so the
+  value is simply abandoned.
+
+Both are declarations like any other, so `pub` governs whether they are visible
+outside their namespace (`11-namespaces.md`).
+
+## Functions
+
+A function has a type, written with the same keyword:
+
+```rust
+fn twice(x: u32) -> u32 { x + x }
+
+let f: fn(u32) -> u32 = twice;
+```
+
+A function pointer is an ordinary pointer — `@sizeof(fn(u32) -> u32)` is one
+machine word — and `?fn(u32) -> u32` is the nullable form.
+
+### Closures
+
+A closure is written the same way, with a capture list in brackets:
+
+```rust
+let factor = 3;
+let scale = fn[factor](x: i32) -> i32 { x * factor };
+```
+
+A capture is taken **by value** — a `Copy` one is copied, any other is moved in
+and the name is unusable afterwards (`03-move.md`):
+
+```rust
+let name = Name{ ... };                 // not Copy
+let greet = fn[name]() { use(name) };
+
+name;                                   // ❌ moved into the closure
+```
+
+`mut` marks the captured slot writable, as it does anywhere else:
+
+```rust
+let mut n = 0;
+let tick = fn[mut n]() { n = n + 1 };
+```
+
+Or the capture is a **pointer**, written with the usual address-of operators —
+`&a` gives a `*T`, `&mut a` a `*mut T`. This is what a closure that accumulates
+into an outer variable needs, since a by-value capture could never hand the
+result back:
+
+```rust
+let mut total = 0;
+let add = fn[&mut total](x: i32) { *total = *total + x };
+```
+
+A pointer capture is a borrow like any other: `&mut total` is exclusive
+(Exclusivity above), so `total` cannot be touched while the closure is live. A
+closure that outlives what it points at makes the same bargain a slice does: the
+dangling use is undefined behaviour, and a `debug` build may or may not catch it.
+
+An empty list, `fn[]`, captures whatever the body uses:
+
+```rust
+let scale = fn[](x: i32) -> i32 { x * factor };
+```
+
+A closure that captures nothing can be used as a plain function pointer:
+
+```rust
+let g: fn(i32) -> i32 = fn[](x: i32) { x * 2 };
+```
+
+Which of `Fn`, `FnMut` or `FnOnce` a closure implements follows from what its
+body does with the captures (`05-traits.md`). A pointer capture does not by
+itself demand `FnMut`: writing through a captured `*mut T` is permitted by the
+pointer's own type, so reading that pointer out of a `*Self` is enough. Only
+writing *through* `self` — a `mut` by-value capture — needs `FnMut`. Rust
+answers this differently, because there a `&mut` has to be reborrowed out of the
+closure, which needs `&mut self`.
+
 ## Compile-Time Checks
 
 Whatever the compiler can prove wrong is rejected at compile time instead of
@@ -510,6 +779,8 @@ being left to run time:
 - arithmetic on constants that overflows
 - dereferencing a `?*T` that has not been checked
 - taking `&mut` of a slot that is not `mut`
+- reaching a value — through its binding, or through another pointer — while a
+  `*mut T` to it is live (Exclusivity below)
 - returning the address of a local
 - returning a slice that outlives what it borrows
 - giving more initializers than the array length

@@ -20,7 +20,14 @@ type `T` is placed at an offset that is a multiple of `@alignof(T)`.
 | `enum X(U)`                | `@sizeof(U)`      | `@alignof(U)`          |
 
 `?T` is `Option<T>`: when `T` has a niche, `?T` reuses it and keeps the size of
-`T`; otherwise it grows by a tag and rounds up to `@alignof(T)`.
+`T`; otherwise it grows by a tag and rounds up to `@alignof(T)`. The same holds
+for `E?T`, which is `Result<T, E>`: whichever of the two has an unused bit
+pattern is where the other case is recorded (`01-types.md`).
+
+An enum carrying a payload is laid out as its tag followed by a union of the
+payloads: `@sizeof` is the tag plus the largest payload, rounded up, and
+`@alignof` is the largest alignment among the tag and the payloads. An enum with
+no payload stays exactly `@sizeof(U)` (`01-types.md`).
 
 `bool` only ever holds the bit patterns `0` and `1`. Any other pattern can only
 appear through a union or a pointer, and reading it is unspecified.

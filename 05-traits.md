@@ -24,7 +24,14 @@ scope with `use std::io;` (`11-namespaces.md`) — not `@` builtins, which are
 listed in `08-reflection.md`.
 
 `self` is an ordinary parameter — `*Self` for a read-only method, `*mut Self`
-for a mutating one.
+for a mutating one, `Self` for one that consumes the value. It is written with
+its type like any other parameter; there is no bare `self`:
+
+```rust
+fn show(self: *Self) -> ();
+fn next(self: *mut Self) -> ?Self::Item;
+fn into_iter(self: Self) -> Self::IntoIter;
+```
 
 A method call is sugar: the receiver is adapted to the `self` the method
 declares, so `p.len()` is `Point::len(&p)` and `it.next()` is `It::next(&mut it)`.
@@ -119,15 +126,56 @@ multiple impls of a trait are ordered — see `04-generics.md`.
 `+`, `<` and `==` are trait methods as well — `Add`, `Ord` and `Eq` — and an
 operator is sugar for the call. See `07-operators.md`.
 
+## Fn
+
+A call is not a builtin either: `f(x)` is sugar for a trait method, exactly as
+an operator is. Three traits, and the receiver is what tells them apart:
+
+| trait | receiver | the body |
+| --- | --- | --- |
+| `Fn(A) -> B` | `self: *Self` | reads the captures; may also write **through** a captured `*mut T` |
+| `FnMut(A) -> B` | `self: *mut Self` | writes a captured slot |
+| `FnOnce(A) -> B` | `self: Self` | moves a capture out |
+
+The line between `Fn` and `FnMut` is where the write goes: through a captured
+pointer, or through `self`. Writing through a captured `*mut T` is permitted by
+that pointer's own type, so reading it out of a `*Self` is enough; writing
+`self.n` needs `*mut Self` (`01-types.md`). Rust draws this line differently
+because there a `&mut` must be reborrowed out of the closure, which needs
+`&mut self`.
+
+`A` is the argument type and `B` the result; the method is `call`. Several
+arguments are one argument of tuple type, so `f(a, b)` supplies an `(A, B)`.
+
+A closure implements whichever of the three its body needs — the least demanding
+one that works (`01-types.md`). A struct can implement one directly, which is how
+a callable with named state is written:
+
+```rust
+struct Scale { factor: u32 }
+
+impl Fn(u32) -> u32 for Scale {
+  fn call(self: *Self, x: u32) -> u32 { self.factor * x }
+}
+```
+
+A generic function takes a callable by value and monomorphizes, as it does for
+any bound; `dyn Fn(u32) -> u32` is the type-erased form, and it is a value like
+any other `dyn A` (`06-dispatch.md`).
+
 ## Copy
 
-`Copy` is a marker trait — it has no functions, so its impl is empty. The
-compiler accepts it only when every field (or element) is itself `Copy` and no
-destructor exists (see `Drop` below).
+```rust
+trait Copy { }
+```
+
+`Copy` is a marker trait — a trait with no functions, which is why its impl is
+empty. The compiler accepts an impl only when every field (or element) is itself
+`Copy` and no destructor exists (see `Drop` below).
 
 ```rust
 struct Point {
-  x: u32,
+  mut x: u32,
   y: u32,
 }
 
@@ -137,6 +185,12 @@ impl Copy for Point { }
 See `03-move.md` for what `Copy` does on assignment.
 
 ## Drop
+
+```rust
+trait Drop {
+  fn drop(mut self: Self) -> ();
+}
+```
 
 `Drop` has a single function, `drop`, which receives the value by ownership.
 It runs when the binding that owns the value reaches the end of its scope —
@@ -166,9 +220,13 @@ impl Drop for BadFd {
 `Copy` and `Drop` are mutually exclusive. The compiler rejects `impl Copy`
 when any field is not `Copy` or a destructor exists.
 
+Both are ordinary traits — declared once, implemented by hand like any other.
+What sets them apart is that the compiler knows their names: it checks a `Copy`
+impl against the type's fields, and it inserts the `Drop` call.
+
 ## Option
 
-`?T` is sugar for `Option<T>`, a regular enum in the standard library:
+`?T` is `Option<T>`, a regular enum in the standard library:
 
 ```rust
 enum Option<T> {
@@ -180,7 +238,27 @@ enum Option<T> {
 ```
 
 `Some` and `None` are written without a prefix — that is part of the `?T` sugar,
-not of `use` (`11-namespaces.md`).
+not of `use` (`11-namespaces.md`). How the type is laid out depends on `T`
+(`01-types.md`), but nothing about that shows up in the enum itself.
+
+## Result
+
+`Result<T, E>` is the error-carrying counterpart of `Option<T>`, and like it an
+ordinary enum in the standard library:
+
+```rust
+enum Result<T, E> {
+  Ok(T),
+  Err(E),
+}
+```
+
+Its sugar is `E?T` (`01-types.md`), which reads as "a `T` or an `E`" — the same
+`?`, with the other case named in front of it instead of left empty.
+
+There is no `try`, no exception and no `catch`: an error is a value, and `f()?`
+hands it back instead of branching on it. When there is nothing sensible to hand
+back, `panic` — an ordinary function in `std`, not a builtin — ends the program.
 
 Niche optimization is a compiler specialization for `Option` specifically,
 not a trait-system feature: when `T` has an unused bit pattern, `@sizeof(?T)`
