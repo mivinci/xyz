@@ -137,9 +137,9 @@ let first = match @typeinfo<T>() {
 };
 ```
 
-## Comptime
+## Compile-time execution
 
-`match` is an ordinary expression, so it is comptime-callable exactly when the
+`match` is an ordinary expression, so it is compile-time callable exactly when the
 scrutinee is compile-time known — and `@typeinfo<T>()` is the prime scrutinee.
 
 ## Open items

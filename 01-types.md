@@ -140,8 +140,9 @@ undefined behaviour in `release`, exactly as an out-of-range index is. The same
 There is no borrow checker. A slice is rejected at compile time only when the
 compiler can see that it outlives what it borrows — returning a slice of a local
 array, say. Across function boundaries there is no lifetime information, so a
-dangling slice falls to the runtime checks in `debug` mode and is undefined
-behaviour in `release`.
+dangling slice is undefined behaviour. A `debug` build may catch some of these;
+how, and how many, is up to the implementation — the language promises nothing
+here. See What xyz guarantees in `README.md`.
 
 An array never decays to a plain pointer. To get a `*T`, take the address of an
 element explicitly:
@@ -402,8 +403,8 @@ let r: *File = &x;           // ❌ likewise
 The check is static, and it is the same kind of check the move analysis makes
 (`03-move.md`): the compiler follows the pointers it can see. Across a function
 boundary there is no lifetime information, so there exclusivity is a promise
-rather than a proof — the same bargain a slice makes: breaking it is caught by
-the runtime checks in `debug` and is undefined behaviour in `release`.
+rather than a proof: breaking it is undefined behaviour, and a `debug` build may
+or may not catch it. A slice makes the same bargain.
 
 A `*T` is not exclusive; any number of them may point at the same value. What
 they promise is only that the value cannot be written through them.
@@ -452,8 +453,9 @@ local is a compile error.
 ### Nullability
 
 `?` is a general modifier: `?T` is "either a `T` or nothing", so `?u32` and
-`?*mut i32` are both valid. A nullable pointer must be checked before it is used;
-after an explicit check it narrows to the nonnull type:
+`?*mut i32` are both valid. A `?T` must be checked before it is used. Comparing
+it against `None` narrows it to `T` in the branch where the comparison holds, in
+either direction:
 
 ```rust
 let p: ?*mut i32 = &mut b;
@@ -465,6 +467,27 @@ if p != None {
 *p = 8;     // ❌ outside the check, p is ?*mut i32 again
 ```
 
+```rust
+if p == None {
+  return;
+}
+
+*p = 7;     // ✅ p is *mut i32 from here on
+```
+
+Narrowing is the same for every `?T`, whether the empty case sits in a niche or
+in a real `Option` — `?u32` narrows to `u32` just as `?*mut i32` narrows to
+`*mut i32`. The check establishes only that the value is there; nothing about
+that depends on how the empty case is represented. `match` is always available
+instead:
+
+```rust
+match p {
+  Some(q) => *q = 7,
+  None => { },
+}
+```
+
 Types distinguish them: `is_same<?*i32, *i32>::value` is false.
 
 `?T` is `Option<T>`: nothing about `None`, `Some` or `match` differs from any
@@ -474,6 +497,48 @@ compiler puts the empty case in that niche, so `@sizeof(?*T)` equals
 without a spare bit pattern carry a tag instead, so `?u32` is larger than `u32`.
 Reflection reports the same split: `@typeinfo<?*T>()` is a `Pointer` with
 `optional: true`, while `@typeinfo<?u32>()` is an `Enum` (`08-reflection.md`).
+
+### Results
+
+`?` reads as "or". With a type in front of it, it names what the other case
+holds: `E?T` is `Result<T, E>` — a `T` or an `E` (`05-traits.md`):
+
+```rust
+let r: Error?u32 = Ok(3);
+```
+
+Narrowing works as it does above, against `Err`:
+
+```rust
+if r != Err {
+  use(r);   // ✅ r is u32 here
+}
+```
+
+To reach the error, match — as with any other enum:
+
+```rust
+match r {
+  Ok(v) => use(v),
+  Err(e) => use(e),
+}
+```
+
+### Propagation
+
+`f()?` evaluates to the value, or returns the error from the enclosing function.
+It is available only where the function's result is an `E?T` with the same `E`:
+
+```rust
+fn read(path: []u8) -> Error?Data {
+  let f = open(path)?;     // on Err, that Err is returned
+  let n = size_of(f)?;
+  ...
+}
+```
+
+When there is no sensible error to hand back, `panic` ends the program. It is an
+ordinary function in `std`, not a builtin (`11-namespaces.md`).
 
 `voidptr` is the opaque pointer type. It can neither be dereferenced nor walked
 — it has no element size — so `@cast` it to a concrete pointer type first:
@@ -589,6 +654,44 @@ let d = cr"hi\n";   // d: []u8 — backslash and `n`, then '\0'
 A raw literal cannot contain `"` — it is the delimiter. Write a quote as an
 escaped `\"` in a normal literal instead; there is no `r#"..."#` nesting.
 
+## Constants and statics
+
+A `const` is a compile-time value, not a slot. Reading it inlines the value, so
+it has no address and cannot be assigned to:
+
+```rust
+const MAX: usize = 1024;
+```
+
+Its initializer must be compile-time known, which is what lets `MAX` stand in
+wherever a compile-time value is required — an array length, a `const if`
+condition, an argument to `@offset`. A `const` may be written at the top level or
+inside a block.
+
+A `static` is a slot that lives for the whole program, and it does have an
+address. `mut` marks it writable, as it does for any other slot:
+
+```rust
+static TABLE: [4]u32 = [4]u32{1, 2, 3, 4};
+static mut HITS: u32 = 0;
+```
+
+An initializer must be compile-time known here as well, so no static is set up
+before another — and there is therefore no initialization order to worry about.
+
+Two things do not apply to statics, and this is the one place the language says
+so plainly:
+
+- **Exclusivity does not apply.** Any function may read or write a `static mut`,
+  and nothing checks or proves that only one of them does. Aliasing a static is
+  the programmer's problem, as it is in C.
+- **Statics are never destructed.** A destructor has to run exactly once
+  (`03-move.md`), and there is no moment for that at the end of a program, so the
+  value is simply abandoned.
+
+Both are declarations like any other, so `pub` governs whether they are visible
+outside their namespace (`11-namespaces.md`).
+
 ## Functions
 
 A function has a type, written with the same keyword:
@@ -639,9 +742,9 @@ let add = fn[&mut total](x: i32) { *total = *total + x };
 ```
 
 A pointer capture is a borrow like any other: `&mut total` is exclusive
-(Exclusivity above), so `total` cannot be touched while the closure is live, and
-a closure that outlives what it points at is the same bargain a slice makes —
-caught by the runtime checks in `debug`, undefined behaviour in `release`.
+(Exclusivity above), so `total` cannot be touched while the closure is live. A
+closure that outlives what it points at makes the same bargain a slice does: the
+dangling use is undefined behaviour, and a `debug` build may or may not catch it.
 
 An empty list, `fn[]`, captures whatever the body uses:
 

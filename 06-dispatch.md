@@ -83,8 +83,8 @@ let it: dyn Iterator<Item = u32> = &mut dyn iter;
 | `dyn A`, `dyn mut A` | two machine words | machine word alignment |
 
 There is no borrow checker, so a handle that outlives what it points at is
-caught by the runtime checks in `debug` and is undefined behaviour in `release`
-— exactly as a slice is (`01-types.md`).
+undefined behaviour — exactly as a slice is (`01-types.md`). A `debug` build may
+catch some of these; the language does not say how.
 
 ## Open items
 

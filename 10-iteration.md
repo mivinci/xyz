@@ -119,12 +119,12 @@ index — a slice would borrow from a value that is about to die, and returning 
 slice of a local array is already a compile error (`01-types.md`):
 
 ```rust
-struct ArrayIter<T, comptime N: usize> {
+struct ArrayIter<T, const N: usize> {
   arr: [N]mut T,    // moved in — a fresh slot may raise writability (01-types.md)
   mut index: usize,
 }
 
-impl<T, comptime N: usize> IntoIterator for [N]T {
+impl<T, const N: usize> IntoIterator for [N]T {
   type Item = T;
   type IntoIter = ArrayIter<T, N>;
   fn into_iter(self: Self) -> ArrayIter<T, N> {
@@ -132,7 +132,7 @@ impl<T, comptime N: usize> IntoIterator for [N]T {
   }
 }
 
-impl<T, comptime N: usize> Iterator for ArrayIter<T, N> {
+impl<T, const N: usize> Iterator for ArrayIter<T, N> {
   type Item = T;
   fn next(self: *mut Self) -> ?T {
     if self.index == N {
@@ -157,7 +157,7 @@ what `&arr` is, since an array never decays (`01-types.md`). The iterator is
 then a slice over the array's own storage, so nothing moves:
 
 ```rust
-impl<T, comptime N: usize> IntoIterator for *[N]T {
+impl<T, const N: usize> IntoIterator for *[N]T {
   type Item = *T;
   type IntoIter = []T;
   fn into_iter(self: Self) -> []T {
@@ -165,7 +165,7 @@ impl<T, comptime N: usize> IntoIterator for *[N]T {
   }
 }
 
-impl<T, comptime N: usize> IntoIterator for *mut [N]mut T {
+impl<T, const N: usize> IntoIterator for *mut [N]mut T {
   type Item = *mut T;
   type IntoIter = []mut T;
   fn into_iter(self: Self) -> []mut T {
@@ -174,7 +174,7 @@ impl<T, comptime N: usize> IntoIterator for *mut [N]mut T {
 }
 ```
 
-The length comes from the type: `N` is a `comptime` value parameter
+The length comes from the type: `N` is a `const` value parameter
 (`08-reflection.md`), and `ptr` and `len` are a slice's two fields
 (`01-types.md`).
 
@@ -293,13 +293,13 @@ With a plain `[3]u32`, `*mut [N]mut T` does not match, and since `*mut [N]T` als
 matches `*[N]T` (`04-generics.md`) the read-only impl is what applies: `x` is
 `*u32` and `*x = v` is rejected — the same answer `arr[0] = v` gets.
 
-### Comptime For
+### Const For
 
-`comptime for` requires the iterated value to be compile-time known and
+`const for` requires the iterated value to be compile-time known and
 unrolls the loop during compilation:
 
 ```rust
-comptime for f in fields {
+const for f in fields {
   ...
 }
 ```
@@ -310,9 +310,9 @@ compile-time known. That is what lets a reflected name feed `@field`
 (`08-reflection.md`), which requires one.
 
 What is unrolled is the iteration, not the body: each copy of the body is
-emitted where the loop stood, as ordinary runtime code. `comptime for` is
+emitted where the loop stood, as ordinary runtime code. `const for` is
 therefore not sugar for `while let` — no loop survives into the generated
-code — and a `comptime for` over a value that is not compile-time known is a
+code — and a `const for` over a value that is not compile-time known is a
 compile error.
 
 ## If
@@ -433,7 +433,7 @@ fn deserialize<T>(s: []u8) -> T {
   match @typeinfo<T>() {
     Struct { fields, .. } => {
       let mut v = T{};                 // zero-init
-      comptime for f in fields {                // f: *Field — a borrow
+      const for f in fields {                // f: *Field — a borrow
         *@field(v, f.name) = parse_field(f, s);
       }
       v

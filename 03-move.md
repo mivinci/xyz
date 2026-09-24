@@ -34,7 +34,8 @@ let q = p;   // ✅ Point is Copy, so p is still usable
 ```
 
 Primitives, pointers, slices, unions and `()` are `Copy` out of the box — a
-slice is a pointer and a length, so even `[]mut T` is `Copy`. An enum carries
+slice is a pointer and a length, so even `[]mut T` is `Copy`, and so is a `dyn A`
+handle, which is a pointer and a vtable (`06-dispatch.md`). An enum carries
 whatever its payload carries, so `?T` is `Copy` exactly when `T` is, while an
 enum without a payload — `enum X(u32)` — is `Copy`. An aggregate — an array, a
 tuple or a struct — is `Copy` exactly when every field is, so `[3]u32` is `Copy`

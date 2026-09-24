@@ -227,6 +227,25 @@ enum Option<T> {
 not of `use` (`11-namespaces.md`). How the type is laid out depends on `T`
 (`01-types.md`), but nothing about that shows up in the enum itself.
 
+## Result
+
+`Result<T, E>` is the error-carrying counterpart of `Option<T>`, and like it an
+ordinary enum in the standard library:
+
+```rust
+enum Result<T, E> {
+  Ok(T),
+  Err(E),
+}
+```
+
+Its sugar is `E?T` (`01-types.md`), which reads as "a `T` or an `E`" — the same
+`?`, with the other case named in front of it instead of left empty.
+
+There is no `try`, no exception and no `catch`: an error is a value, and `f()?`
+hands it back instead of branching on it. When there is nothing sensible to hand
+back, `panic` — an ordinary function in `std`, not a builtin — ends the program.
+
 Niche optimization is a compiler specialization for `Option` specifically,
 not a trait-system feature: when `T` has an unused bit pattern, `@sizeof(?T)`
 equals `@sizeof(T)`; otherwise `?T` grows by a tag. See `04-generics.md` for the

@@ -19,7 +19,7 @@ impl<T> Serialize for T {
   fn write(self: *Self, out: *mut Writer) -> () {
     match @typeinfo<T>() {
       Struct { fields, .. } => {
-        comptime for f in fields {
+        const for f in fields {
           write_field(out, @field(*self, f.name));
         }
       }
