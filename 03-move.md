@@ -277,7 +277,7 @@ if cond {
   let c = b;      //    never both
 }
 
-while cond {
+for cond {
   let a = b;      // ❌ the second iteration would move a dead b
 }
 ```
