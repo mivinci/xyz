@@ -178,12 +178,28 @@ The length comes from the type: `N` is a `const` value parameter
 (`08-reflection.md`), and `ptr` and `len` are a slice's two fields
 (`01-types.md`).
 
-## While
+## For
 
-`while` runs its body for as long as the condition holds:
+`for` is the only loop. Which of its three shapes it takes is decided by what
+follows the keyword — `let` marks the pattern shape, `in` the iteration shape,
+and anything else is a condition:
+
+| shape | runs its body while |
+| ----- | ------------------- |
+| `for cond { }` | the condition holds |
+| `for let PAT = e { }` | the pattern fits |
+| `for PAT in c { }` | the iterator yields |
+
+`in` appears nowhere else in the language, so one token is enough to tell the
+three apart. The first two shapes are below; the third has a section of its
+own.
+
+### Condition
+
+`for cond` runs its body for as long as the condition holds:
 
 ```rust
-while cond {
+for cond {
   body
 }
 ```
@@ -192,7 +208,7 @@ The condition is re-evaluated before every iteration. `break` exits the loop
 and `continue` skips to the next evaluation:
 
 ```rust
-while cond {
+for cond {
   if skip {
     continue;
   }
@@ -202,21 +218,21 @@ while cond {
 }
 ```
 
-### While let
+### For let
 
-`while let` matches a value against a pattern and runs the body while the
+`for let` matches a value against a pattern and runs the body while the
 pattern fits:
 
 ```rust
-while let Some(x) = it.next() {
+for let Some(x) = it.next() {
   use(x);
 }
 ```
 
-desugars to:
+desugars to the condition shape over a `match`:
 
 ```rust
-while true {
+for true {
   match it.next() {
     Some(x) => use(x),
     None => break,
@@ -225,11 +241,12 @@ while true {
 ```
 
 A value the pattern does not fit ends the loop — the arm written `None` above.
-`for` is `while let` over `into_iter`, so the two are one construct.
+`for x in c` is this shape over `into_iter` (`For in` below), so the two are
+one construct.
 
-## For
+## For in
 
-`for` iterates a container and is sugar for `while let` over its iterator:
+`for x in c` iterates a container and is sugar for `for let` over its iterator:
 
 ```rust
 for x in c {
@@ -242,13 +259,13 @@ desugars to:
 ```rust
 {
   let mut it = c.into_iter();
-  while let Some(x) = it.next() {
+  for let Some(x) = it.next() {
     body
   }
 }
 ```
 
-which is itself sugar for `while` over a `match`. The binding is a pattern
+The binding is a pattern
 (`09-match.md`), so an iterator that yields tuples is destructured in place:
 
 ```rust
@@ -311,9 +328,9 @@ compile-time known. That is what lets a reflected name feed `@field`
 
 What is unrolled is the iteration, not the body: each copy of the body is
 emitted where the loop stood, as ordinary runtime code. `const for` is
-therefore not sugar for `while let` — no loop survives into the generated
-code — and a `const for` over a value that is not compile-time known is a
-compile error.
+therefore not sugar for the pattern shape — no loop survives into the
+generated code — and a `const for` over a value that is not compile-time
+known is a compile error.
 
 ## If
 
