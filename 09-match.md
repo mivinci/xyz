@@ -104,8 +104,8 @@ match p {
 `_` skips an element — `(x, _, y)`. The scrutinee's type fixes the arity, so a
 tuple pattern always fits and needs no wildcard arm of its own.
 
-A pattern also appears wherever a value is bound — `let`, `for`, and
-`while let` (`10-iteration.md`) — not only in `match`.
+A pattern also appears wherever a value is bound — `let`, `for x in c`, and
+`for let` (`10-iteration.md`) — not only in `match`.
 
 ### No guards, no ranges, no literal patterns
 
@@ -164,7 +164,7 @@ binding that wants another name does not destructure — `let x = s.a;`.
 
 A binding pattern must be **irrefutable** — it always fits. The type fixes a
 tuple's arity and a struct's field names, so both are checked at compile time:
-a wrong arity or an unknown field name is an error. `while let`
+a wrong arity or an unknown field name is an error. `for let`
 (`10-iteration.md`) is the refutable counterpart, where the pattern may fail and
 failure ends the loop.
 

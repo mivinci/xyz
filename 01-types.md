@@ -437,7 +437,7 @@ walk needs in order to know where to stop:
 let mut p: *i32 = &a[0];
 let end: *i32 = p + 3;
 
-while p < end {
+for p < end {
   use(*p);
   p = p + 1;
 }
