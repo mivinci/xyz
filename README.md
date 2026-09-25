@@ -26,7 +26,7 @@ notation and the terms every chapter uses.
 | [07-operators.md](./07-operators.md) | `05` | operators as trait methods, `Add`/`Ord`/`Eq` |
 | [08-reflection.md](./08-reflection.md) | `07` | compile-time execution, `TypeInfo`, the builtin table |
 | [09-match.md](./09-match.md) | `01` | pattern matching |
-| [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `while`, `for`, `if`, `return` |
+| [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `for`, `if`, `return` |
 | [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use` |
 | [12-macros.md](./12-macros.md) | `08` | the case against a user-defined macro system (not settled) |
 
