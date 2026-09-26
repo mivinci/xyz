@@ -27,8 +27,10 @@ notation and the terms every chapter uses.
 | [08-reflection.md](./08-reflection.md) | `07` | compile-time execution, `TypeInfo`, the builtin table |
 | [09-match.md](./09-match.md) | `01` | pattern matching |
 | [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `for`, `if`, `return` |
-| [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use` |
-| [12-macros.md](./12-macros.md) | `08` | the case against a user-defined macro system (not settled) |
+| [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use`, name resolution |
+| [12-projects.md](./12-projects.md) | `11` | compilation unit, one artifact, `main` and exit codes |
+| [13-testing.md](./13-testing.md) | `12` | `#[test]`, the test artifact and its runner |
+| [14-macros.md](./14-macros.md) | `08` | the case against a user-defined macro system (not settled) |
 
 ## What xyz guarantees
 
@@ -67,7 +69,8 @@ A design in progress. The specification is internally consistent at the moment;
 
 Still open:
 
-- Whether a macro system should exist at all — `12-macros.md` currently argues
+- Whether a macro system should exist at all — `14-macros.md` currently argues
   against one, but the conclusion is deliberately left open
-- The one open item left at the end of `11-namespaces.md`: external libraries,
-  and how their paths enter the root
+- The one open item left at the end of `12-projects.md`: external libraries,
+  and how their paths enter the root — they will distribute as source
+  (`12-projects.md`), but dependency declaration waits for a manifest

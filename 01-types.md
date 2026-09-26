@@ -92,9 +92,9 @@ let a = [3]mut u32{1, 2, 3};
 
 a[0] = 42;
 
-#assert(a[0] == 42);
-#assert(a[1] == 2);
-#assert(a[2] == 3);
+assert(a[0] == 42);
+assert(a[1] == 2);
+assert(a[2] == 3);
 ```
 
 ## Slice
@@ -112,8 +112,8 @@ advanced. Writing the slice itself — `s = ...` — is governed by the binding'
 let a = [3]u32{1, 2, 3};
 let s: []u32 = a[..];   // the whole array, as a slice
 
-#assert(s[0] == 1);
-#assert(s[2] == 3);
+assert(s[0] == 1);
+assert(s[2] == 3);
 ```
 
 As with arrays, `mut` marks whether the elements can be written:
@@ -173,9 +173,9 @@ let b: X = { a: 1, b: 42, c: 3.14 };
 a.b = 2;     // ❌ X::b is not mut
 b.c = 2.71;  // ✅ X::c is mut
 
-#assert(a.a == 0);
-#assert(a.b == 0);
-#assert(a.c == 0.0);
+assert(a.a == 0);
+assert(a.b == 0);
+assert(a.c == 0.0);
 ```
 
 or
@@ -193,7 +193,7 @@ it names, not a new one — so `is_same` sees through it:
 ```rust
 type MyInt = i32;
 
-#assert(is_same<MyInt, i32>::value);
+assert(is_same<MyInt, i32>::value);
 ```
 
 Because it is transparent, the alias and its target are one type — there is no
@@ -207,8 +207,8 @@ target, exactly as if the target were written out:
 type Vec<T>   = []T;
 type Pair<A, B> = (A, B);
 
-#assert(is_same<Vec<u32>, []u32>::value);
-#assert(is_same<Pair<i32, u8>, (i32, u8)>::value);
+assert(is_same<Vec<u32>, []u32>::value);
+assert(is_same<Pair<i32, u8>, (i32, u8)>::value);
 ```
 
 An alias is a name, not a shape pattern: it has no specialization, and it may
@@ -241,8 +241,8 @@ let a: (u32, mut f32) = (42, 3.14);
 a.0 = 1;     // ❌ the 1st element is not mut
 a.1 = 2.71;  // ✅ the 2nd element is mut
 
-#assert(a.0 == 42);
-#assert(a.1 == 2.71);
+assert(a.0 == 42);
+assert(a.1 == 2.71);
 ```
 
 where the 2nd element is mut
@@ -252,7 +252,7 @@ without a return value returns `()`. There is no `void`, so generic code never
 needs a `FixVoid`:
 
 ```rust
-#assert(@sizeof(()) == 0);
+assert(@sizeof(()) == 0);
 ```
 
 There is no `never` type: a function that never returns still returns `()`, and
@@ -289,12 +289,12 @@ zero value:
 ```rust
 let a = X{};
 
-#assert(@sizeof(a) == 4);
-#assert(@sizeof<X>() == 4);
-#assert(@alignof(a) == 4);
-#assert(@alignof<X>() == 4);
-#assert(@offset<X>("a") == 0);
-#assert(@offset<X>("b") == 0);
+assert(@sizeof(a) == 4);
+assert(@sizeof<X>() == 4);
+assert(@alignof(a) == 4);
+assert(@alignof<X>() == 4);
+assert(@offset<X>("a") == 0);
+assert(@offset<X>("b") == 0);
 ```
 
 Once a field has been written, reading a different one behaves exactly as it does
@@ -339,8 +339,8 @@ let q: *mut i32 = &mut b;  // ✅ b is mut
 
 *q = 7;
 
-#assert(*q == 7);
-#assert(*p == 42);
+assert(*q == 7);
+assert(*p == 42);
 ```
 
 `&mut` requires the slot itself to be `mut`:
@@ -555,6 +555,53 @@ let back: *mut i32 = @cast<*mut i32>(v);
 let bad = v + 1;   // ❌ voidptr cannot be walked
 ```
 
+## Allocation
+
+The language does not allocate. A growable container takes an allocator as a
+type parameter and holds it by value — most allocators are zero-sized marker
+types, and a stateful one (an arena, say) simply moves into the container:
+
+```rust
+// in std
+struct Vec<T, A: Allocator = Heap> { buf: ?[]mut T, len: usize, alloc: A }
+```
+
+`Allocator` is a trait in `std::mem`, and `Heap` — the system allocator — is
+its default, so `Vec<T>` is `Vec<T, Heap>`:
+
+```rust
+// in std::mem
+enum AllocError { OutOfMemory }                 // a named error: variants may grow
+
+trait Allocator {
+  fn alloc(self: *Self, size: usize, align: usize) -> AllocError?[]u8;
+  fn free(self: *Self, buf: []u8) -> ();
+}
+```
+
+Two plain `usize` arguments, not a `Layout` struct: the request is a size and
+an alignment, and wrapping two words in a type would pull it into reflection —
+`@typeinfo` would have to describe it, serialization would walk it — for
+nothing the bare pair does not already say. `alloc` returns a slice, not a
+pointer. A block is an address and a length together, and the slice carries
+both: the length rides with the value, debug builds get the bounds checks on
+it from the first write, and `free` needs nothing but the slice back — the
+allocator recovers the block's size from its own metadata. Pointer arithmetic
+(`p + 1`, above) is for walking a block an allocator already owns; the
+interface it shows the world is a slice. The failure mode is a named error:
+`AllocError?[]u8` reads as "a block, or a reason there is none" — `None`
+cannot say why. Arguments are ordinary runtime values, so a `dyn Allocator`
+can dispatch them (`06-dispatch.md`).
+
+The parameters are not `const`: the size and alignment of a request are
+usually known only where it is made. A static allocator that wants them at
+compile time can still specialize on them itself.
+
+`Heap`'s own implementation is platform code — it reaches the system through
+`#[extern(C)]`, which is what the standard library is for. Nothing about the
+guarantees changes: user code never allocates by itself, and a slice still
+never allocates — the allocator does, and the slice is what it hands back.
+
 ## Cast
 
 `@cast<T>(a)` performs a well-defined conversion, like `static_cast` in C++:
@@ -613,11 +660,11 @@ The variants are of type `X`, not of the underlying type, so `@cast` is needed
 to get the integer out:
 
 ```rust
-#assert(@cast<u32>(X::A) == 0);
-#assert(@cast<u32>(X::B) == 1);
-#assert(@cast<u32>(X::C) == 2);
-#assert(@cast<u32>(X::D) == 10);
-#assert(@cast<u32>(X::E) == 11);
+assert(@cast<u32>(X::A) == 0);
+assert(@cast<u32>(X::B) == 1);
+assert(@cast<u32>(X::C) == 2);
+assert(@cast<u32>(X::D) == 10);
+assert(@cast<u32>(X::E) == 11);
 ```
 
 ## String
@@ -640,7 +687,7 @@ A `c` prefix makes a NUL-terminated slice — the C string literal, for FFI:
 ```rust
 let a = c"hi";   // a: []u8
 
-#assert(a[2] == '\0');
+assert(a[2] == '\0');
 ```
 
 ### Raw String
@@ -831,7 +878,7 @@ Its arguments, when it has any, are identifiers or literals — `debug`, `16`,
 `"desc"` — never expressions, and they do not nest. Each attribute interprets
 its own arguments; an attribute is not a function, and not a macro.
 
-Five attributes are defined by the language, all consumed by the compiler:
+Six attributes are defined by the language, all consumed by the compiler:
 
 | attribute | what it does | where |
 | --- | --- | --- |
@@ -839,6 +886,7 @@ Five attributes are defined by the language, all consumed by the compiler:
 | `#[extern(C)]` | C linkage, import or export | External functions above |
 | `#[build(...)]` | the function exists only in the named modes | Build modes below |
 | `#[noreturn]` | a call to it never produces a value | `10-iteration.md` |
+| `#[test]` | the function is a test; collected into the test artifact | `13-testing.md` |
 
 There is no way to define a new one. Any other name is a user attribute: the
 compiler does not interpret it, but reflection reads it — the `#[skip]` above

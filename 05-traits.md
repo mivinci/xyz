@@ -100,8 +100,8 @@ struct is_same<T, T> {}
 impl<A, B> is_same<A, B> { const value: bool = false; }
 impl<T>    is_same<T, T> { const value: bool = true;  }
 
-#assert(is_same<i32, i32>::value);
-#assert(!is_same<i32, u32>::value);
+assert(is_same<i32, i32>::value);
+assert(!is_same<i32, u32>::value);
 ```
 
 An inherent impl supplies associated constants and methods, but not fields —

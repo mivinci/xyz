@@ -30,7 +30,7 @@ let p = Point{ x: 1, y: 2 };
 
 let q = p;   // ✅ Point is Copy, so p is still usable
 
-#assert(p.x == 1);
+assert(p.x == 1);
 ```
 
 Primitives, pointers, slices, unions and `()` are `Copy` out of the box — a
@@ -46,7 +46,7 @@ let a = [3]u32{1, 2, 3};
 
 let b = a;   // ✅ the elements are Copy
 
-#assert(a[0] == 1);
+assert(a[0] == 1);
 ```
 
 ## Moving Out of a Place
@@ -304,5 +304,5 @@ Slicing an array borrows it and does not move it:
 let a = [3]u32{1, 2, 3};
 let s: []u32 = a[..];   // ✅ a still owns the elements
 
-#assert(a[0] == 1);
+assert(a[0] == 1);
 ```

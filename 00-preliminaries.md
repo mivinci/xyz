@@ -6,11 +6,13 @@ How to read this specification, and the terms every chapter uses.
 
 - `@xxx` is a builtin — a function the language provides, not one written in it.
   There are ten, listed in `08-reflection.md`.
-- `#xxx` is a built-in construct. There is one — `#assert` — listed in
-  `12-macros.md`.
+- There is no `#xxx` syntax. The one built-in construct drafts carried — the
+  compile-time `#assert` — is deferred (`14-macros.md`).
 - `#[...]` is an attribute — a marker on a declaration, read by the compiler
   or by reflection. The list is in `01-types.md`.
 - In an example, ✅ means it compiles and ❌ means it does not.
+- Examples write `assert` bare; it is the `std::debug` function
+  (`01-types.md`).
 
 ## Terms
 

@@ -13,11 +13,23 @@ time, with ordinary semantics. Two restrictions apply: inputs must be
 compile-time known, and evaluation must have no effects — it only produces
 a value.
 
+Two criteria decide, and nothing else: every input is compile-time known, and
+the evaluation has no effects — it produces a value and does nothing else.
+There is no separate compile-time language: no construct is compile-time-only,
+and none is banned from compile time by name. What the criteria rule out:
+
+| cannot run at compile time | blocked by |
+| --- | --- |
+| a call whose argument is a runtime value | inputs not known |
+| `alloc`, and anything that allocates | an allocation is an effect, and a block's address is not a value the compiler can keep |
+| a call through `#[extern(C)]` | the linker is not part of evaluation |
+| `panic` | `@compileError` is how compile-time code reports; panic belongs to the running program |
+
 ```rust
 let a = [3]u32{1, 2, 3};
 let sum = a[0] + a[1] + a[2];
 
-#assert(sum == 6);
+assert(sum == 6);
 ```
 
 User functions are callable at compile time when their arguments are
@@ -31,11 +43,33 @@ fn twice(x: u32) -> u32 {
 let n = io::read_u32();          // runtime
 let four = twice(twice(n));      // runtime call — the argument is not known
 
-#assert(twice(21) == 42);       // compile-time call, same function
+assert(twice(21) == 42);        // the argument is known, so it evaluates at compile time
 ```
 
 Functions with control flow become compile-time callable once that control flow
 is defined — `match` (`09-match.md`) and the loops (`10-iteration.md`).
+
+### What the spec promises
+
+The evaluator is not specified beyond four promises:
+
+1. *Determinism.* Same inputs, same value — evaluation observes nothing, so it
+   cannot vary.
+2. *No `Drop`.* Destructors are inserted into the running program's control
+   flow (`03-move.md`); compile-time evaluation has no such flow, and runs
+   none. A move at compile time produces the value; nothing is destructed.
+3. *Overflow is an error.* Not a wrap: the compile-time checks of
+   `01-types.md` apply to every step of evaluation, not only to literals.
+4. *An end.* Evaluation must terminate: the implementation sets a step limit,
+   and exceeding it is a compile error — never a hang. How many steps is up
+   to the implementation.
+
+### Evaluation budget
+
+Compile time is not an infinite resource. Two counters guard it: the 256
+unfoldings of generic recursion (`04-generics.md`), and the evaluator's step
+limit above. They are different mechanisms — one counts template expansion,
+one counts executed steps — and both end in a compile error, not a hang.
 
 ## Const parameters
 
@@ -223,11 +257,11 @@ Splicing comes back down: that data becomes a type again.
 
 ```rust
 let t: type = ^^u32;                          // lifting — up into the meta level
-#assert(is_same<$$t, u32>::value);            // splicing — back down to a type
+assert(is_same<$$t, u32>::value);             // splicing — back down to a type
 
 match @typeinfo<*u32>() {
   Pointer { child, .. } => {
-    #assert(is_same<$$child, u32>::value);    // child is already a reference
+    assert(is_same<$$child, u32>::value);     // child is already a reference
     let c: TypeInfo = @typeinfo<$$child>();   // splice, then expand
   }
 }
@@ -241,7 +275,7 @@ a type from a value, since `^^` starts from a type that is already named:
 
 ```rust
 let a = 42;
-#assert(is_same<$$@typeof(a), i32>::value);
+assert(is_same<$$@typeof(a), i32>::value);
 ```
 
 The two slots of `@typeinfo` differ here, and the difference matters. In the
@@ -293,7 +327,7 @@ fn remove_pointer<T>() -> type {
   }
 }
 
-#assert(is_same<$$remove_pointer<*u32>(), u32>::value);
+assert(is_same<$$remove_pointer<*u32>(), u32>::value);
 ```
 
 ## Field access
@@ -306,7 +340,7 @@ is `&v.x`. Writing is governed by the field's `mut`, exactly as `v.x` is:
 let mut p = Point{ x: 0, y: 0 };
 
 *@field(p, "x") = 42;                 // p.x = 42
-#assert(*@field(p, "x") == 42);
+assert(*@field(p, "x") == 42);
 ```
 
 The name must be compile-time known, so the field's type and offset are
@@ -329,8 +363,8 @@ struct is_same<T, T> {}
 impl<A, B> is_same<A, B> { const value: bool = false; }
 impl<T>    is_same<T, T> { const value: bool = true;  }
 
-#assert(is_same<i32, i32>::value);
-#assert(!is_same<i32, u32>::value);
+assert(is_same<i32, i32>::value);
+assert(!is_same<i32, u32>::value);
 ```
 
 `TypeInfo` equality is structural — two distinct types that happen to be built

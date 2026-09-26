@@ -126,7 +126,3 @@ There are no relative paths — `self::` and `super::` are not defined, and noth
 needs them: a sibling is in the current namespace and is named with no path at
 all, and everything else is named absolutely. What a path means therefore does
 not depend on which file it is written in.
-
-## Open items
-
-- External libraries, and how their paths enter the root.
