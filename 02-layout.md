@@ -93,16 +93,17 @@ struct E {}
 A zero-sized field takes no space; its offset is the running offset, so several
 zero-sized fields may share one offset. Distinct addresses are not guaranteed.
 
-## Reprs
+## Layout attributes
 
-`#repr` changes the layout of the declaration it precedes.
+`#[packed]` and `#[align(N)]` are attributes (`01-types.md`) that change the
+layout of the declaration they mark.
 
-`packed` drops all padding and sets the alignment to 1. A field of a `packed`
+`#[packed]` drops all padding and sets the alignment to 1. A field of a packed
 struct may therefore be unaligned, and taking its address is a compile error —
 an unaligned `*T` cannot be represented:
 
 ```rust
-#repr(packed)
+#[packed]
 struct P {
   a: u8,
   b: u32,
@@ -122,7 +123,7 @@ let x = p.b;          // ✅ reading a packed field is fine
 it:
 
 ```rust
-#repr(align(16))
+#[align(16)]
 struct C {
   a: u8,
 }
@@ -131,8 +132,8 @@ struct C {
 #assert(@sizeof(C) == 16);
 ```
 
-`packed` and `align(N)` contradict each other, so a declaration carrying both
-is a compile error.
+`#[packed]` and `#[align(N)]` contradict each other, so a declaration carrying
+both — one bracket or two — is a compile error.
 
 ## Endianness
 

@@ -91,6 +91,20 @@ length, say:
 impl<T, const N: usize> IntoIterator for [N]T { ... }   // 10-iteration.md
 ```
 
+A function with a `const` parameter is a compile-time tool and cannot be used
+as a value: assigning it to a function pointer, passing it as an argument, or
+spelling it as a type argument are all compile errors. The `const` arguments
+are baked into each instantiation, and a pointer call has nowhere to hand them
+over — it would silently skip the compile-time-known check
+(`let g: fn([]u8) -> usize = field_offset<Point>; g(runtime_string)`). If a
+function must be callable both ways, it is two functions: the `const` one
+delegates to the plain one.
+
+```rust
+fn field_offset_plain<T>(name: []u8) -> usize { @offset<T>(name) }
+fn field_offset<T>(const name: []u8) -> usize { field_offset_plain<T>(name) }
+```
+
 ## TypeInfo
 
 `std::meta::TypeInfo` is a tagged union — an enum whose variants carry a
@@ -104,13 +118,16 @@ enum TypeInfo {
   Bool,
   Int     { bits: u16, signed: bool },
   Float   { bits: u16 },
-  Pointer { child: type, mutable: bool, optional: bool },  // *T / *mut T / ?*T
-  Slice   { child: type, mutable: bool, optional: bool },  // []T / []mut T / ?[]T
+  Pointer { child: type, mutable: bool },                  // *T / *mut T
+  Slice   { child: type, mutable: bool },                  // []T / []mut T
   Array   { len: usize, child: type, mutable: bool },       // [N]T / [N]mut T
-  Struct  { fields: []Field, repr: Repr },
-  Union   { fields: []Field, repr: Repr },
-  Enum    { tag: type, variants: []EnumField },            // Option<T>; ?T lands here when T has no niche
+  Struct  { fields: []Field, attrs: []Attr },
+  Union   { fields: []Field, attrs: []Attr },
+  Enum    { tag: type, variants: []EnumField },
   Tuple   { fields: []Field },                             // (A, B, ...) — () has none; names are empty
+  Fn      { args: []FnArg, ret: type },                    // fn(A) -> R
+  Optional { child: type },                                // ?T — the sugar, whatever T is
+  Result   { ok: type, err: type },                        // E?T — the sugar, whatever T is
   Voidptr,                                                 // voidptr
 }
 
@@ -119,24 +136,60 @@ struct Field {
   type: type,        // a type reference
   offset: usize,
   mutable: bool,
+  attrs: []Attr,     // the attributes marked on this field
 }
 
 struct EnumField {
   name: []u8,
   value: i64,
-  type: ?type,   // None when the variant carries no payload
+  type: ?type,       // None when the variant carries no payload
+  attrs: []Attr,     // the attributes marked on this variant
 }
 
-enum Repr {
-  Default,                  // no #repr — natural layout
-  Packed,                   // #repr(packed) — no padding, alignment 1
-  Align { align: usize },   // #repr(align(N))
+struct FnArg {
+  name: []u8,        // always empty — an argument's name lives in the declaration, not the type
+  type: type,
+}
+
+struct Attr {
+  name: []u8,
+  args: []AttrArg,
+}
+
+enum AttrArg {          // an argument is an identifier, a number, or a string
+  Ident([]u8),          // #[build(debug)] — debug
+  Int(i64),             // #[align(16)] — 16
+  Str([]u8),            // a string literal
 }
 ```
 
-`Repr` records the `#repr` on a declaration. `packed` and `align(N)` contradict
-each other — a declaration carrying both is a compile error (`02-layout.md`) —
-so `Repr` is an enum: the two can never be recorded at once.
+`attrs` records the `#[...]` attributes on the declaration (`01-types.md`); a
+`Field` and an `EnumField` carry the ones marked on that field or variant. The
+variants that describe types with no declaration of their own — `Bool`, `Int`,
+`Float`, and the rest — carry no `attrs`: there is nothing to mark. Layout is
+not decoded here either: `@sizeof`, `@alignof` and `@offset` answer those
+questions directly, so `#[packed]` and `#[align(N)]` are recorded as names,
+not as layout facts.
+
+`fn(A, B) -> R` is a pointer at the language level (`01-types.md`) — one word,
+nullable — but its reflection is its own variant, not a `Pointer`: `Fn` carries
+the arguments and the return type directly. Staying out of `Pointer` is what
+keeps `*fn(A, B) -> R` a plain `Pointer` whose child is an `Fn`, rather than
+two nested `Pointer` layers. An argument's name and its attributes live in the
+declaration, not the type — `fn twice(x: u32)` and `fn double(y: u32)` are the
+same type — so an `FnArg`'s `name` is always empty: the same bargain `Tuple`
+makes with `Field` above.
+
+`?T` is sugar for `Option<T>` (`01-types.md`), and reflection says so:
+`@typeinfo<?T>()` is always `Optional { child: ... }` — for `?*T` no less than
+for `?u32`. How the value is laid out is a different question: a pointer,
+slice or fn has a null niche to hold the empty case in, so `@sizeof(?*T)` is
+one word (`01-types.md`), while `?u32` grows a tag. Reflection does not
+re-tell that story — it would be the same fact twice — any more than it decodes
+layout. `E?T` follows the same rule on its side: `@typeinfo<E?T>()` is always
+`Result { ok: ..., err: ... }`, and whether `E?*T` reuses the niche is
+`@sizeof`'s to answer. Generic code that asks "can this be empty?" matches one
+variant instead of guessing at `Enum` shapes.
 
 `@typeinfo` runs in two slots. In the type slot it describes a type; in the
 value slot it describes the type of a value:
@@ -146,21 +199,9 @@ let a: TypeInfo = @typeinfo<u32>();   // Int { bits: 32, signed: false }
 let b: TypeInfo = @typeinfo(42);      // Int { bits: 32, signed: true }
 ```
 
-`?T` is `Option<T>`, so `None`, `Some` and `match` work on it whatever `T` is.
-What the type *is* underneath depends on `T`, though, and `@typeinfo` reports
-that:
-
-- for a pointer or a slice, the compiler puts the empty case in a niche — the
-  null pointer — so `@typeinfo<?*T>()` is a `Pointer` with `optional: true` and
-  `@typeinfo<?[]T>()` is a `Slice` with `optional: true`. The value is still one
-  or two words (`01-types.md`), not an `Option` wrapped around it.
-- for anything else there is no niche to use, so the type really is
-  `Option<T>`: `@typeinfo<?u32>()` is an `Enum`.
-
-There is no `Optional` variant of `TypeInfo`; nullability either rides along in a
-field or shows up as the enum it is. `E?T` — `Result<T, E>` — follows the same
-split: `@typeinfo<E?*mut u32>()` is a `Pointer` with `optional: true`, while
-`@typeinfo<E?u32>()` is an `Enum` (`01-types.md`).
+`?T` is `Option<T>`, so `None`, `Some` and `match` work on it whatever `T` is —
+and so does narrowing (`01-types.md`), whether the empty case sits in a niche
+or in a tag.
 
 `()` is the unit type — there is no `void` (`01-types.md`) — so `@typeinfo<()>()`
 is a `Tuple` with no fields, not a distinct `Void` variant. `voidptr` keeps its

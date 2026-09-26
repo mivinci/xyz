@@ -498,8 +498,10 @@ other enum. What differs is the layout — when `T` has an unused bit pattern th
 compiler puts the empty case in that niche, so `@sizeof(?*T)` equals
 `@sizeof(*T)` and the null pointer value represents the empty case. Types
 without a spare bit pattern carry a tag instead, so `?u32` is larger than `u32`.
-Reflection reports the same split: `@typeinfo<?*T>()` is a `Pointer` with
-`optional: true`, while `@typeinfo<?u32>()` is an `Enum` (`08-reflection.md`).
+That is where the difference ends: reflection does not repeat it —
+`@typeinfo<?T>()` is `Optional { child: ... }` whatever `T` is
+(`08-reflection.md`); which representation a value got is a question for
+`@sizeof`.
 
 ### Results
 
@@ -540,8 +542,9 @@ fn read(path: []u8) -> Error?Data {
 }
 ```
 
-When there is no sensible error to hand back, `panic` ends the program. It is an
-ordinary function in `std`, not a builtin (`11-namespaces.md`).
+When there is no sensible error to hand back, `panic` ends the program — see
+Panic, at the end of this chapter. It is an ordinary function in `std`, not a
+builtin (`11-namespaces.md`).
 
 `voidptr` is the opaque pointer type. It can neither be dereferenced nor walked
 — it has no element size — so `@cast` it to a concrete pointer type first:
@@ -769,6 +772,79 @@ writing *through* `self` — a `mut` by-value capture — needs `FnMut`. Rust
 answers this differently, because there a `&mut` has to be reborrowed out of the
 closure, which needs `&mut self`.
 
+### External functions
+
+`#[extern(C)]` puts a function under the C rules:
+
+```rust
+#[extern(C)]
+fn strlen(s: *u8) -> usize;                 // import — no body, C provides it
+
+#[extern(C)]
+pub fn triple(x: i32) -> i32 { x * 3 }      // export — C calls it as triple
+```
+
+Without a body it declares an import: the call is an ordinary call, and the
+linker supplies the symbol. With a body it marks an export: the symbol is the
+function's own name, unmangled.
+
+Unmangled is the point. Overloading (`04-generics.md`) and namespaces
+(`11-namespaces.md`) both force every other function's symbol to be mangled,
+so `pub` alone can never hand C a name to call. `pub` says whether other xyz
+code can call the function; `#[extern(C)]` says whether C can — two different
+questions.
+
+The attribute does not change the calling convention, because there is nothing
+to change to: xyz's own convention **is** the platform's C convention —
+registers, stack order, everything but the symbol name. An `#[extern(C)]`
+function therefore has the same function type as an ordinary one
+(`08-reflection.md`) and can be passed around as a value freely. A compiler
+that wants to experiment with a faster private convention is free to — for
+whole programs it compiles start to finish, where the convention never
+crosses a boundary it did not choose.
+
+Data crosses without an attribute: field order is never reordered
+(`02-layout.md`), and a naturally laid out struct is laid out the way C lays
+it out. There is no `unsafe` marker to cross with — the guarantees already end
+where the compiler cannot see, and a call into C is not a deeper hole than
+that.
+
+## Attributes
+
+An attribute is a fixed marker in square brackets before a declaration:
+
+```rust
+struct Frame {
+  #[skip]                     // a user attribute — reflection reads it
+  crc: u32,
+  len: u32,
+}
+
+#[packed]                     // a language attribute — the compiler reads it
+struct Header { version: u8, len: u32 }
+```
+
+`#[a] #[b]` and `#[a, b]` are two ways of writing the same pair. An attribute
+may mark a struct, union or enum declaration, one of its variants, a field, a
+parameter, or a function declaration — never a statement, never an expression.
+Its arguments, when it has any, are identifiers or literals — `debug`, `16`,
+`"desc"` — never expressions, and they do not nest. Each attribute interprets
+its own arguments; an attribute is not a function, and not a macro.
+
+Five attributes are defined by the language, all consumed by the compiler:
+
+| attribute | what it does | where |
+| --- | --- | --- |
+| `#[packed]` / `#[align(N)]` | changes layout | `02-layout.md` |
+| `#[extern(C)]` | C linkage, import or export | External functions above |
+| `#[build(...)]` | the function exists only in the named modes | Build modes below |
+| `#[noreturn]` | a call to it never produces a value | `10-iteration.md` |
+
+There is no way to define a new one. Any other name is a user attribute: the
+compiler does not interpret it, but reflection reads it — the `#[skip]` above
+shows up in `TypeInfo` (`08-reflection.md`), and an impl can read it and skip
+the field.
+
 ## Compile-Time Checks
 
 Whatever the compiler can prove wrong is rejected at compile time instead of
@@ -805,8 +881,61 @@ Compile-time checks are always on, in every mode. Runtime checks depend on the
 build mode:
 
 - `debug` — runtime checks are inserted; an out-of-range index, an arithmetic
-  overflow or a failed conversion traps
+  overflow or a failed conversion panics (Panic below)
 - `release` — no runtime checks; those same cases are undefined behaviour
 
 A program therefore has to be validated in `debug` before it can be trusted in
 `release`. What is a compile error stays a compile error in both modes.
+
+### Panic
+
+A panic prints a message and aborts the process:
+
+```rust
+// in std
+#[noreturn]
+fn panic(msg: []u8) { /* print the message, then abort */ }
+```
+
+Every runtime check fails into a panic that names the check — "index out of
+range", "arithmetic overflow" — and `assert` (below) fails the same way: one
+mechanism, not one per cause.
+
+A panic does not unwind. Destructors are inserted statically on the paths the
+compiler can see (`03-move.md`), and the panic path is not one of them — a
+`Drop` is not guaranteed to run. The process ends with `abort`, deliberately
+not with `exit`: exiting cleanly would flush buffers and run exit handlers on
+a state the panic no longer trusts.
+
+Whether a backtrace can be printed is not promised: it needs frame pointers
+or unwind tables, which are up to the implementation and the mode — a `debug`
+build may keep them, a stripped `release` binary may have nothing but raw
+addresses.
+
+### Mode-gated functions
+
+`#[build(...)]` names the modes a function exists in:
+
+```rust
+// in std::debug
+#[build(debug)]
+fn assert(cond: bool) { if !cond { panic("assertion failed"); } }
+
+#[build(debug)]
+fn assert(cond: bool, msg: []u8) { if !cond { panic(msg); } }
+```
+
+In a mode that is not listed, a call to the function does not exist: the call
+site is removed, and the arguments are not evaluated. Both `assert`s above
+therefore compile away to nothing in `release`. A debug-only stretch of code
+is the same mechanism — put it in a `#[build(debug)]` function and call that.
+
+The value of a call that does not exist cannot be used: `let x = debug_only();`
+is rejected at the `let`, with a diagnostic that names the mode gating — not a
+bare "expected expression". And because the arguments are not evaluated in the
+modes that remove the call, `@take` (`03-move.md`) may not appear in them: a
+move that happens in one mode but not the other would break the static
+destructor bookkeeping.
+
+`#[build(debug, release)]` names several modes; listing every mode is the same
+as having no attribute at all.
