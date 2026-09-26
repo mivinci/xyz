@@ -259,8 +259,8 @@ the move check rejects any program whose drop set is not statically known (see
 Branches below); the rejection is precisely what buys purely static insertion.
 
 Drops are inserted the same way in `debug` and in `release`. When a `debug`
-runtime check traps, the process aborts without unwinding — destructors do not
-run, resources are left to the operating system.
+runtime check panics (`01-types.md`), the process aborts without unwinding —
+destructors do not run, resources are left to the operating system.
 
 ### Branches
 

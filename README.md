@@ -17,8 +17,8 @@ notation and the terms every chapter uses.
 | file | continues | what it defines |
 | --- | --- | --- |
 | [00-preliminaries.md](./00-preliminaries.md) | — | notation; `slot`, `place`, compile-time known |
-| [01-types.md](./01-types.md) | `00` | types and `mut`, arrays, slices, structs, pointers, enums, strings |
-| [02-layout.md](./02-layout.md) | `01` | size and alignment, `#repr` |
+| [01-types.md](./01-types.md) | `00` | types and `mut`, arrays, slices, structs, pointers, enums, strings, attributes, panic |
+| [02-layout.md](./02-layout.md) | `01` | size and alignment, layout attributes |
 | [03-move.md](./03-move.md) | `02` | move semantics, `Copy`, `Drop`, `@take` |
 | [04-generics.md](./04-generics.md) | `03` | generics, specialization, shape patterns, variadics |
 | [05-traits.md](./05-traits.md) | `04` | traits, associated items, inherent impls, `Option` |

@@ -397,6 +397,24 @@ match o {
 }
 ```
 
+One call can diverge too: a function marked `#[noreturn]` (`01-types.md`)
+never produces a value, and a path that ends in a call to one — `panic`, say —
+leaves nothing to type check. This is why
+
+```rust
+fn open_or_die(path: []u8) -> File {
+  match open(path) {
+    Ok(f)  => f,
+    Err(_) => panic("cannot open"),
+  }
+}
+```
+
+compiles: the `Err` arm's value is nothing, so it agrees with any other arm.
+The judgement stays syntactic — the compiler does not trace control flow; it
+looks for a `return`, a `break`, a `continue`, or a call to a `#[noreturn]`
+function, and nothing deeper.
+
 ## Adapters
 
 An adapter wraps an iterator in an ordinary struct — nothing about it needs

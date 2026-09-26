@@ -6,7 +6,10 @@ How to read this specification, and the terms every chapter uses.
 
 - `@xxx` is a builtin — a function the language provides, not one written in it.
   There are ten, listed in `08-reflection.md`.
-- `#xxx` is a built-in construct. There are two, listed in `12-macros.md`.
+- `#xxx` is a built-in construct. There is one — `#assert` — listed in
+  `12-macros.md`.
+- `#[...]` is an attribute — a marker on a declaration, read by the compiler
+  or by reflection. The list is in `01-types.md`.
 - In an example, ✅ means it compiles and ❌ means it does not.
 
 ## Terms

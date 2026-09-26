@@ -259,6 +259,7 @@ Its sugar is `E?T` (`01-types.md`), which reads as "a `T` or an `E`" — the sam
 There is no `try`, no exception and no `catch`: an error is a value, and `f()?`
 hands it back instead of branching on it. When there is nothing sensible to hand
 back, `panic` — an ordinary function in `std`, not a builtin — ends the program.
+It is `#[noreturn]`: a call to it never produces a value (`10-iteration.md`).
 
 Niche optimization is a compiler specialization for `Option` specifically,
 not a trait-system feature: when `T` has an unused bit pattern, `@sizeof(?T)`
