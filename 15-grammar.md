@@ -27,8 +27,11 @@ Terminals are always quoted.
 
 A source file is UTF-8. A carriage return before a newline is read as part of
 the newline, and a byte order mark at the very start of a file is skipped;
-otherwise the compiler sees the bytes as they are. Identifiers are ASCII in
-v0 — the Unicode question is an open item below.
+otherwise the compiler sees the bytes as they are. Identifiers are ASCII,
+deliberately: opening up to a Unicode identifier set later is pure addition,
+closing down after opening is a breaking change, and a system language's
+identifiers skew English anyway — comments and string literals carry any
+bytes they like.
 
 Comments and blanks are equivalent — a comment is whitespace:
 
@@ -231,8 +234,9 @@ The precedence levels, tightest first:
 
 | level | operators | associativity |
 | --- | --- | --- |
+| range | `..` | **one per expression, loosest** |
 | postfix | `.f` `.0` `[...]` `(...)` `?` | chains left to right |
-| unary | `*` `&` `&mut` `!` `-` `^^` `$$` `@name` | prefix |
+| unary | `*` `&` `&mut` `!` `-` `~` `^^` `$$` `@name` | prefix |
 | multiplicative | `*` `/` `%` | left |
 | additive | `+` `-` | left |
 | shift | `<<` `>>` | left |
@@ -250,8 +254,16 @@ is a syntax error, and comparing two booleans is written with parentheses,
 the common shape. `^^` and `$$` are prefix-only: `a ^^ b` is a syntax error
 (`08-reflection.md`).
 
+A range is loosest of all: `a..b` is one `..`, two full expressions, and
+no more than one per expression — `a..b..c` is a syntax error. Both ends
+are required: the open forms `..n` and `n..` stay where they were, inside
+index brackets (`01-types.md`), because an open end is an index into a
+slice's length, not a value.
+
 ```ebnf
-expression  = if_expr | match_expr | or_expr ;
+expression  = if_expr | match_expr | range_expr ;
+
+range_expr  = or_expr [ ".." or_expr ] ;
 
 if_expr     = [ "const" ] "if" expression block
               [ "else" ( if_expr | block ) ] ;
@@ -529,10 +541,9 @@ There is no C-style three-part `for (init; cond; step)`: `for cond` with a
 `let mut` before it and a step at the tail of the body says the same thing
 with parts the language already has, and an iterator says it better when the
 step is a walk. Zig makes the same cut — `while` and `for`, no third head.
-What the three shapes do not give is a range: `..` lives in index brackets
-only, so `for i in 0..10` is not a form today. It would take a `Range`
-iterator and letting `..` out of the brackets — an addition to weigh when
-the need shows up, recorded as an open item, not a gap this pass left.
+A range closes the common case: `for i in 0..10` is the third shape over a
+`Range` iterator, the range being the one expression form `..` has outside
+index brackets (`10-iteration.md`).
 
 ### Patterns
 
@@ -562,8 +573,6 @@ condition, and it goes in the expression, not the pattern (`09-match.md`).
 
 ## Open items
 
-- Range expressions. `..` lives in index brackets only; `for i in 0..10`
-  would take a `Range` iterator and a range expression — an addition to
-  weigh when the need shows up.
-- Identifiers beyond ASCII — which Unicode set, and whether v0 wants it at
-  all.
+None. The grammar is closed and the corners are decided; anything added
+from here — a new operator, a new literal form — opens a new item rather
+than quietly extending a table.
