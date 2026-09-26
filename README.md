@@ -28,7 +28,7 @@ notation and the terms every chapter uses.
 | [09-match.md](./09-match.md) | `01` | pattern matching |
 | [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `for`, `if`, `return` |
 | [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use`, name resolution |
-| [12-projects.md](./12-projects.md) | `11` | compilation unit, one artifact, `main` and exit codes |
+| [12-projects.md](./12-projects.md) | `11` | compilation unit, one artifact, `main` and exit codes, what v0 does not carry |
 | [13-testing.md](./13-testing.md) | `12` | `#[test]`, the test artifact and its runner |
 | [14-macros.md](./14-macros.md) | `08` | the case against a user-defined macro system (not settled) |
 | [15-grammar.md](./15-grammar.md) | — | the grammar in EBNF, closed: lexing, expressions, types, declarations, statements, patterns |
@@ -75,3 +75,9 @@ Still open:
 - The one open item left at the end of `12-projects.md`: external libraries,
   and how their paths enter the root — they will distribute as source
   (`12-projects.md`), but dependency declaration waits for a manifest
+- The chapter-level items deferred with their chapters: `dyn A + B` and a
+  `@typeinfo<dyn A>` variant (`06-dispatch.md`); an `Output` associated type
+  and traits for `%`, the bitwise operators, and shifts (`07-operators.md`);
+  the compile-time `assert` (`14-macros.md`, deferred); concurrency, atomics,
+  `volatile`, and inline assembly are v1+ work, behind `#[extern(C)]` until
+  then (`12-projects.md`)
