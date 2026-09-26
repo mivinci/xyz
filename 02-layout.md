@@ -48,11 +48,11 @@ struct S {
   c: u16,
 }
 
-#assert(@offset<S>("a") == 0);
-#assert(@offset<S>("b") == 4);   // bytes 1..3 are padding
-#assert(@offset<S>("c") == 8);
-#assert(@sizeof(S) == 12);       // bytes 10..11 are trailing padding
-#assert(@alignof(S) == 4);
+assert(@offset<S>("a") == 0);
+assert(@offset<S>("b") == 4);   // bytes 1..3 are padding
+assert(@offset<S>("c") == 8);
+assert(@sizeof(S) == 12);       // bytes 10..11 are trailing padding
+assert(@alignof(S) == 4);
 ```
 
 ```text
@@ -71,10 +71,10 @@ union X {
   b: u32,
 }
 
-#assert(@offset<X>("a") == 0);
-#assert(@offset<X>("b") == 0);
-#assert(@sizeof(X) == 4);
-#assert(@alignof(X) == 4);
+assert(@offset<X>("a") == 0);
+assert(@offset<X>("b") == 0);
+assert(@sizeof(X) == 4);
+assert(@alignof(X) == 4);
 ```
 
 ## Zero-Sized Types
@@ -84,10 +84,10 @@ An empty struct or union has `@sizeof == 0` and `@alignof == 1`.
 ```rust
 struct E {}
 
-#assert(@sizeof(E) == 0);
-#assert(@alignof(E) == 1);
-#assert(@sizeof([3]E) == 0);
-#assert(@sizeof(()) == 0);
+assert(@sizeof(E) == 0);
+assert(@alignof(E) == 1);
+assert(@sizeof([3]E) == 0);
+assert(@sizeof(()) == 0);
 ```
 
 A zero-sized field takes no space; its offset is the running offset, so several
@@ -109,9 +109,9 @@ struct P {
   b: u32,
 }
 
-#assert(@offset<P>("b") == 1);
-#assert(@sizeof(P) == 5);
-#assert(@alignof(P) == 1);
+assert(@offset<P>("b") == 1);
+assert(@sizeof(P) == 5);
+assert(@alignof(P) == 1);
 
 let p = P{ a: 1, b: 2 };
 
@@ -128,8 +128,8 @@ struct C {
   a: u8,
 }
 
-#assert(@alignof(C) == 16);
-#assert(@sizeof(C) == 16);
+assert(@alignof(C) == 16);
+assert(@sizeof(C) == 16);
 ```
 
 `#[packed]` and `#[align(N)]` contradict each other, so a declaration carrying

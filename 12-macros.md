@@ -1,7 +1,7 @@
 # Macros
 
 This chapter continues `08-reflection.md`. It records why xyz has, **so far**, no
-user-defined macro system, and what the built-in `#` construct is for. The
+user-defined macro system, and why no built-in `#` construct remains. The
 conclusion is not settled — see If this changes below.
 
 ## No macro system
@@ -59,26 +59,21 @@ types written long after the accessor would have been.
 
 ## What remains built in
 
-One `#` construct stays, because none of the above can do its job:
-
-| construct | what it does | why no impl can replace it |
-| --- | --- | --- |
-| `#assert` | compile-time assertion | not a declaration |
-
-`#assert` is not the `assert` function — that one is a `std::debug` function
-gated to `debug` builds (`01-types.md`). The construct asserts at compile
-time; the function checks at run time.
+Nothing. The one `#` construct this chapter once carried — `#assert`, a
+compile-time assertion — is deferred: v0 ships the runtime `assert` as a
+`std::debug` function (`01-types.md`) and no `#` syntax at all. Should a
+compile-time `assert` ever be introduced, it returns here.
 
 Layout changed from construct to attribute: `#repr` became `#[packed]` and
-`#[align(N)]` (`02-layout.md`). Attributes are not macros and not constructs —
-they are fixed markers on declarations, read by the compiler or by reflection
-(`01-types.md`). Like the construct, they are fixed in number and defined by
-the language; as it stands there is no way to add one, and no `derive` — a
+`#[align(N)]` (`02-layout.md`). Attributes are not macros — they are fixed
+markers on declarations, read by the compiler or by reflection
+(`01-types.md`). Like builtins, they are fixed in number and defined by the
+language; as it stands there is no way to add one, and no `derive` — a
 marker trait such as `Copy` is implemented by hand (`05-traits.md`).
 
 ## If this changes
 
 A macro system would only earn its place for something reflection cannot
-express — new syntax, which is what a DSL needs. That is out of scope here, and
-the built-in construct cannot rewrite arbitrary syntax in any case. Should it
-ever be wanted, the first question is whether the language wants new syntax at all.
+express — new syntax, which is what a DSL needs. That is out of scope here.
+Should it ever be wanted, the first question is whether the language wants
+new syntax at all.

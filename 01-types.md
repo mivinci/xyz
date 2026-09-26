@@ -92,9 +92,9 @@ let a = [3]mut u32{1, 2, 3};
 
 a[0] = 42;
 
-#assert(a[0] == 42);
-#assert(a[1] == 2);
-#assert(a[2] == 3);
+assert(a[0] == 42);
+assert(a[1] == 2);
+assert(a[2] == 3);
 ```
 
 ## Slice
@@ -112,8 +112,8 @@ advanced. Writing the slice itself — `s = ...` — is governed by the binding'
 let a = [3]u32{1, 2, 3};
 let s: []u32 = a[..];   // the whole array, as a slice
 
-#assert(s[0] == 1);
-#assert(s[2] == 3);
+assert(s[0] == 1);
+assert(s[2] == 3);
 ```
 
 As with arrays, `mut` marks whether the elements can be written:
@@ -173,9 +173,9 @@ let b: X = { a: 1, b: 42, c: 3.14 };
 a.b = 2;     // ❌ X::b is not mut
 b.c = 2.71;  // ✅ X::c is mut
 
-#assert(a.a == 0);
-#assert(a.b == 0);
-#assert(a.c == 0.0);
+assert(a.a == 0);
+assert(a.b == 0);
+assert(a.c == 0.0);
 ```
 
 or
@@ -193,7 +193,7 @@ it names, not a new one — so `is_same` sees through it:
 ```rust
 type MyInt = i32;
 
-#assert(is_same<MyInt, i32>::value);
+assert(is_same<MyInt, i32>::value);
 ```
 
 Because it is transparent, the alias and its target are one type — there is no
@@ -207,8 +207,8 @@ target, exactly as if the target were written out:
 type Vec<T>   = []T;
 type Pair<A, B> = (A, B);
 
-#assert(is_same<Vec<u32>, []u32>::value);
-#assert(is_same<Pair<i32, u8>, (i32, u8)>::value);
+assert(is_same<Vec<u32>, []u32>::value);
+assert(is_same<Pair<i32, u8>, (i32, u8)>::value);
 ```
 
 An alias is a name, not a shape pattern: it has no specialization, and it may
@@ -241,8 +241,8 @@ let a: (u32, mut f32) = (42, 3.14);
 a.0 = 1;     // ❌ the 1st element is not mut
 a.1 = 2.71;  // ✅ the 2nd element is mut
 
-#assert(a.0 == 42);
-#assert(a.1 == 2.71);
+assert(a.0 == 42);
+assert(a.1 == 2.71);
 ```
 
 where the 2nd element is mut
@@ -252,7 +252,7 @@ without a return value returns `()`. There is no `void`, so generic code never
 needs a `FixVoid`:
 
 ```rust
-#assert(@sizeof(()) == 0);
+assert(@sizeof(()) == 0);
 ```
 
 There is no `never` type: a function that never returns still returns `()`, and
@@ -289,12 +289,12 @@ zero value:
 ```rust
 let a = X{};
 
-#assert(@sizeof(a) == 4);
-#assert(@sizeof<X>() == 4);
-#assert(@alignof(a) == 4);
-#assert(@alignof<X>() == 4);
-#assert(@offset<X>("a") == 0);
-#assert(@offset<X>("b") == 0);
+assert(@sizeof(a) == 4);
+assert(@sizeof<X>() == 4);
+assert(@alignof(a) == 4);
+assert(@alignof<X>() == 4);
+assert(@offset<X>("a") == 0);
+assert(@offset<X>("b") == 0);
 ```
 
 Once a field has been written, reading a different one behaves exactly as it does
@@ -339,8 +339,8 @@ let q: *mut i32 = &mut b;  // ✅ b is mut
 
 *q = 7;
 
-#assert(*q == 7);
-#assert(*p == 42);
+assert(*q == 7);
+assert(*p == 42);
 ```
 
 `&mut` requires the slot itself to be `mut`:
@@ -660,11 +660,11 @@ The variants are of type `X`, not of the underlying type, so `@cast` is needed
 to get the integer out:
 
 ```rust
-#assert(@cast<u32>(X::A) == 0);
-#assert(@cast<u32>(X::B) == 1);
-#assert(@cast<u32>(X::C) == 2);
-#assert(@cast<u32>(X::D) == 10);
-#assert(@cast<u32>(X::E) == 11);
+assert(@cast<u32>(X::A) == 0);
+assert(@cast<u32>(X::B) == 1);
+assert(@cast<u32>(X::C) == 2);
+assert(@cast<u32>(X::D) == 10);
+assert(@cast<u32>(X::E) == 11);
 ```
 
 ## String
@@ -687,7 +687,7 @@ A `c` prefix makes a NUL-terminated slice — the C string literal, for FFI:
 ```rust
 let a = c"hi";   // a: []u8
 
-#assert(a[2] == '\0');
+assert(a[2] == '\0');
 ```
 
 ### Raw String

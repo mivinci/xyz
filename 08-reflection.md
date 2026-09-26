@@ -29,7 +29,7 @@ and none is banned from compile time by name. What the criteria rule out:
 let a = [3]u32{1, 2, 3};
 let sum = a[0] + a[1] + a[2];
 
-#assert(sum == 6);
+assert(sum == 6);
 ```
 
 User functions are callable at compile time when their arguments are
@@ -43,7 +43,7 @@ fn twice(x: u32) -> u32 {
 let n = io::read_u32();          // runtime
 let four = twice(twice(n));      // runtime call — the argument is not known
 
-#assert(twice(21) == 42);       // compile-time call, same function
+assert(twice(21) == 42);        // the argument is known, so it evaluates at compile time
 ```
 
 Functions with control flow become compile-time callable once that control flow
@@ -257,11 +257,11 @@ Splicing comes back down: that data becomes a type again.
 
 ```rust
 let t: type = ^^u32;                          // lifting — up into the meta level
-#assert(is_same<$$t, u32>::value);            // splicing — back down to a type
+assert(is_same<$$t, u32>::value);             // splicing — back down to a type
 
 match @typeinfo<*u32>() {
   Pointer { child, .. } => {
-    #assert(is_same<$$child, u32>::value);    // child is already a reference
+    assert(is_same<$$child, u32>::value);     // child is already a reference
     let c: TypeInfo = @typeinfo<$$child>();   // splice, then expand
   }
 }
@@ -275,7 +275,7 @@ a type from a value, since `^^` starts from a type that is already named:
 
 ```rust
 let a = 42;
-#assert(is_same<$$@typeof(a), i32>::value);
+assert(is_same<$$@typeof(a), i32>::value);
 ```
 
 The two slots of `@typeinfo` differ here, and the difference matters. In the
@@ -327,7 +327,7 @@ fn remove_pointer<T>() -> type {
   }
 }
 
-#assert(is_same<$$remove_pointer<*u32>(), u32>::value);
+assert(is_same<$$remove_pointer<*u32>(), u32>::value);
 ```
 
 ## Field access
@@ -340,7 +340,7 @@ is `&v.x`. Writing is governed by the field's `mut`, exactly as `v.x` is:
 let mut p = Point{ x: 0, y: 0 };
 
 *@field(p, "x") = 42;                 // p.x = 42
-#assert(*@field(p, "x") == 42);
+assert(*@field(p, "x") == 42);
 ```
 
 The name must be compile-time known, so the field's type and offset are
@@ -363,8 +363,8 @@ struct is_same<T, T> {}
 impl<A, B> is_same<A, B> { const value: bool = false; }
 impl<T>    is_same<T, T> { const value: bool = true;  }
 
-#assert(is_same<i32, i32>::value);
-#assert(!is_same<i32, u32>::value);
+assert(is_same<i32, i32>::value);
+assert(!is_same<i32, u32>::value);
 ```
 
 `TypeInfo` equality is structural — two distinct types that happen to be built
