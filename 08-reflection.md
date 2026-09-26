@@ -13,6 +13,18 @@ time, with ordinary semantics. Two restrictions apply: inputs must be
 compile-time known, and evaluation must have no effects — it only produces
 a value.
 
+Two criteria decide, and nothing else: every input is compile-time known, and
+the evaluation has no effects — it produces a value and does nothing else.
+There is no separate compile-time language: no construct is compile-time-only,
+and none is banned from compile time by name. What the criteria rule out:
+
+| cannot run at compile time | blocked by |
+| --- | --- |
+| a call whose argument is a runtime value | inputs not known |
+| `alloc`, and anything that allocates | an allocation is an effect, and a block's address is not a value the compiler can keep |
+| a call through `#[extern(C)]` | the linker is not part of evaluation |
+| `panic` | `@compileError` is how compile-time code reports; panic belongs to the running program |
+
 ```rust
 let a = [3]u32{1, 2, 3};
 let sum = a[0] + a[1] + a[2];
@@ -36,6 +48,28 @@ let four = twice(twice(n));      // runtime call — the argument is not known
 
 Functions with control flow become compile-time callable once that control flow
 is defined — `match` (`09-match.md`) and the loops (`10-iteration.md`).
+
+### What the spec promises
+
+The evaluator is not specified beyond four promises:
+
+1. *Determinism.* Same inputs, same value — evaluation observes nothing, so it
+   cannot vary.
+2. *No `Drop`.* Destructors are inserted into the running program's control
+   flow (`03-move.md`); compile-time evaluation has no such flow, and runs
+   none. A move at compile time produces the value; nothing is destructed.
+3. *Overflow is an error.* Not a wrap: the compile-time checks of
+   `01-types.md` apply to every step of evaluation, not only to literals.
+4. *An end.* Evaluation must terminate: the implementation sets a step limit,
+   and exceeding it is a compile error — never a hang. How many steps is up
+   to the implementation.
+
+### Evaluation budget
+
+Compile time is not an infinite resource. Two counters guard it: the 256
+unfoldings of generic recursion (`04-generics.md`), and the evaluator's step
+limit above. They are different mechanisms — one counts template expansion,
+one counts executed steps — and both end in a compile error, not a hang.
 
 ## Const parameters
 

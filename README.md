@@ -27,7 +27,7 @@ notation and the terms every chapter uses.
 | [08-reflection.md](./08-reflection.md) | `07` | compile-time execution, `TypeInfo`, the builtin table |
 | [09-match.md](./09-match.md) | `01` | pattern matching |
 | [10-iteration.md](./10-iteration.md) | `05`, `09` | `Iterator`, `for`, `if`, `return` |
-| [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use` |
+| [11-namespaces.md](./11-namespaces.md) | `01` | a directory is a namespace, `use`, entry and artifacts |
 | [12-macros.md](./12-macros.md) | `08` | the case against a user-defined macro system (not settled) |
 
 ## What xyz guarantees
@@ -70,4 +70,5 @@ Still open:
 - Whether a macro system should exist at all — `12-macros.md` currently argues
   against one, but the conclusion is deliberately left open
 - The one open item left at the end of `11-namespaces.md`: external libraries,
-  and how their paths enter the root
+  and how their paths enter the root — they will distribute as source
+  (`11-namespaces.md`), but dependency declaration waits for a manifest

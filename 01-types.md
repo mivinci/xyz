@@ -555,6 +555,53 @@ let back: *mut i32 = @cast<*mut i32>(v);
 let bad = v + 1;   // ❌ voidptr cannot be walked
 ```
 
+## Allocation
+
+The language does not allocate. A growable container takes an allocator as a
+type parameter and holds it by value — most allocators are zero-sized marker
+types, and a stateful one (an arena, say) simply moves into the container:
+
+```rust
+// in std
+struct Vec<T, A: Allocator = Heap> { buf: ?[]mut T, len: usize, alloc: A }
+```
+
+`Allocator` is a trait in `std::mem`, and `Heap` — the system allocator — is
+its default, so `Vec<T>` is `Vec<T, Heap>`:
+
+```rust
+// in std::mem
+enum AllocError { OutOfMemory }                 // a named error: variants may grow
+
+trait Allocator {
+  fn alloc(self: *Self, size: usize, align: usize) -> AllocError?[]u8;
+  fn free(self: *Self, buf: []u8) -> ();
+}
+```
+
+Two plain `usize` arguments, not a `Layout` struct: the request is a size and
+an alignment, and wrapping two words in a type would pull it into reflection —
+`@typeinfo` would have to describe it, serialization would walk it — for
+nothing the bare pair does not already say. `alloc` returns a slice, not a
+pointer. A block is an address and a length together, and the slice carries
+both: the length rides with the value, debug builds get the bounds checks on
+it from the first write, and `free` needs nothing but the slice back — the
+allocator recovers the block's size from its own metadata. Pointer arithmetic
+(`p + 1`, above) is for walking a block an allocator already owns; the
+interface it shows the world is a slice. The failure mode is a named error:
+`AllocError?[]u8` reads as "a block, or a reason there is none" — `None`
+cannot say why. Arguments are ordinary runtime values, so a `dyn Allocator`
+can dispatch them (`06-dispatch.md`).
+
+The parameters are not `const`: the size and alignment of a request are
+usually known only where it is made. A static allocator that wants them at
+compile time can still specialize on them itself.
+
+`Heap`'s own implementation is platform code — it reaches the system through
+`#[extern(C)]`, which is what the standard library is for. Nothing about the
+guarantees changes: user code never allocates by itself, and a slice still
+never allocates — the allocator does, and the slice is what it hands back.
+
 ## Cast
 
 `@cast<T>(a)` performs a well-defined conversion, like `static_cast` in C++:
@@ -831,7 +878,7 @@ Its arguments, when it has any, are identifiers or literals — `debug`, `16`,
 `"desc"` — never expressions, and they do not nest. Each attribute interprets
 its own arguments; an attribute is not a function, and not a macro.
 
-Five attributes are defined by the language, all consumed by the compiler:
+Six attributes are defined by the language, all consumed by the compiler:
 
 | attribute | what it does | where |
 | --- | --- | --- |
@@ -839,6 +886,7 @@ Five attributes are defined by the language, all consumed by the compiler:
 | `#[extern(C)]` | C linkage, import or export | External functions above |
 | `#[build(...)]` | the function exists only in the named modes | Build modes below |
 | `#[noreturn]` | a call to it never produces a value | `10-iteration.md` |
+| `#[test]` | the function is a test; collected into the test artifact | `11-namespaces.md` |
 
 There is no way to define a new one. Any other name is a user attribute: the
 compiler does not interpret it, but reflection reads it — the `#[skip]` above
