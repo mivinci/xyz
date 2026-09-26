@@ -205,10 +205,10 @@ token = identifier | keyword | integer | float
       | "(" | ")" | "[" | "]" | "{" | "}"
       | "," | ";" | ":" | "::" | "." | ".." | "..."
       | "->" | "?" | "@" | "$$" | "^^" | "#["
-      | "+" | "-" | "*" | "/" | "%"
-      | "^" | "&" | "|" | "!"
+      | "+" | "-" | "*" | "/" | "%" | "~"
+      | "^" | "&" | "|" | "!" | "<<" | ">>"
       | "<" | ">" | "<=" | ">=" | "==" | "!=" | "&&" | "||"
-      | "=" | "+=" | "-=" | "*=" | "/=" ;
+      | "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" ;
 ```
 
 Lexing takes the longest match: `::` is one token, never two `:`, and
@@ -217,12 +217,13 @@ Lexing takes the longest match: `::` is one token, never two `:`, and
 by `[` is a lexical error. What the tokens mean in which position — the seven
 uses of `[`, the three of `?` — is the expression pass.
 
-One consequence worth naming: there is no `>>` token, and none is wanted.
-`is_same<i32, i32>>()` reads `>` `>` — nested generic arguments close with two
-separate tokens (`05-traits.md`), which is only possible because the language
-has no shift operators. If shifts are ever introduced, the lexer must split
-`>>` and the grammar pays for it; that is an open item below, not a surprise
-waiting in the token table.
+`>>` is one token and two, and position decides: the lexer always emits a
+single `>>`, and the parser splits it — but only at a generic-arguments
+closing. `is_same<i32, i32>>()` needs two closers, so the `>>` there counts
+as `>` `>` (`05-traits.md`); everywhere else it is the shift operator. The
+split lives in one production — `generic_args`, shared by the expression and
+type grammars — and the existing lookahead still governs: after a closing
+`>`, a `(`, `::`, or `.` must follow, or what came before is a comparison.
 
 ## Expressions
 
@@ -234,6 +235,7 @@ The precedence levels, tightest first:
 | unary | `*` `&` `&mut` `!` `-` `^^` `$$` `@name` | prefix |
 | multiplicative | `*` `/` `%` | left |
 | additive | `+` `-` | left |
+| shift | `<<` `>>` | left |
 | bit and | `&` | left |
 | bit xor | `^` | left |
 | bit or | `\|` | left |
@@ -263,13 +265,15 @@ statement   = let_statement | assignment | expression ";" ;
 or_expr     = and_expr { "||" and_expr } ;
 and_expr    = cmp_expr { "&&" cmp_expr } ;
 cmp_expr    = bitor_expr [ cmp_operator bitor_expr ] ;
+cmp_operator = "<" | ">" | "<=" | ">=" | "==" | "!=" ;
 bitor_expr  = bitxor_expr { "|" bitxor_expr } ;
 bitxor_expr = bitand_expr { "^" bitand_expr } ;
-bitand_expr = add_expr { "&" add_expr } ;
+bitand_expr = shift_expr { "&" shift_expr } ;
+shift_expr  = add_expr { ( "<<" | ">>" ) add_expr } ;
 add_expr    = mul_expr { ( "+" | "-" ) mul_expr } ;
 mul_expr    = unary_expr { ( "*" | "/" | "%" ) unary_expr } ;
 
-unary_expr  = ( "*" | "&" [ "mut" ] | "!" | "-" | "^^" | "$$" ) unary_expr
+unary_expr  = ( "*" | "&" [ "mut" ] | "!" | "-" | "~" | "^^" | "$$" ) unary_expr
             | postfix_expr ;
 
 postfix_expr = primary_expr { postfix } ;
@@ -488,7 +492,7 @@ statement = let_statement
 
 let_statement = "let" [ "mut" ] pattern [ ":" type ] "=" expression ";" ;
 
-assignment = expression ( "=" | "+=" | "-=" | "*=" | "/=" ) expression ";" ;
+assignment = expression ( "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" ) expression ";" ;
 
 jump_statement = "return" [ expression ] ";"
                | "break" ";"
@@ -558,12 +562,6 @@ condition, and it goes in the expression, not the pattern (`09-match.md`).
 
 ## Open items
 
-- Shift and bitwise-not operators. The language has `&`, `^`, `|` and no
-  `<<`, `>>`, `~` — no example ever wanted them, and their absence is what
-  lets nested generics close with plain `>` tokens. Introducing shifts means
-  splitting `>>` in the lexer (the Rust bill); if they arrive, they slot
-  between additive and bit and, or wherever C puts them, and this chapter
-  gains a row.
 - Range expressions. `..` lives in index brackets only; `for i in 0..10`
   would take a `Range` iterator and a range expression — an addition to
   weigh when the need shows up.

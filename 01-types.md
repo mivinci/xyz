@@ -966,8 +966,8 @@ fn panic(msg: []u8) { /* print the message, then abort */ }
 ```
 
 Every runtime check fails into a panic that names the check — "index out of
-range", "arithmetic overflow" — and `assert` (below) fails the same way: one
-mechanism, not one per cause.
+range", "arithmetic overflow", "shift amount out of range" — and `assert`
+(below) fails the same way: one mechanism, not one per cause.
 
 A panic does not unwind. Destructors are inserted statically on the paths the
 compiler can see (`03-move.md`), and the panic path is not one of them — a
