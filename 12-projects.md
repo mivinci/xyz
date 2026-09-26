@@ -46,6 +46,24 @@ Printing an `Err` needs no trait: the runtime prints through reflection — the
 variant name for an enum, field by field for a struct — so any error type works
 without a derive.
 
+## What v0 does not carry
+
+The language has no threads, no atomics, no `volatile`, no inline assembly,
+and no memory model to run any of them under. A systems language owes that
+statement, not just the silence. Concurrency opens aliasing questions the
+design has deliberately left outside — `README.md`'s "Not addressed" tier —
+and v0 does not reach for them: the whole axis is v1 work or later, a
+language-wide decision, not a chapter's.
+
+What the boundary looks like in practice: everything on that list is a
+platform facility, and platform facilities enter through `#[extern(C)]`
+(`01-types.md`) — the same door `Heap`'s implementation uses. A thread, a
+lock, an atomic load, a `volatile` read, or an `asm` block is an `extern`
+call into code the linker resolves; from the language's side it is a call
+it cannot check, which is exactly the standing bargain of every `extern`
+call. A library of such bindings can be written in xyz itself — the
+signatures are ordinary declarations — and one day will be.
+
 ## Open items
 
 - External libraries, and how their paths enter the root. They will distribute
