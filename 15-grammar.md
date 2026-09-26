@@ -1,9 +1,9 @@
 # Grammar
 
 This chapter states the language's grammar in EBNF. It arrives in three
-passes: this pass fixes the lexical grammar — the tokens everything later
-parses. The second pass fixes expressions (precedence and the ambiguous
-corners), the third declarations and statements, closing the language.
+passes: the first fixed the lexical grammar — the tokens. This pass fixes
+expressions and types: the precedence levels, the three jobs of `?`, the
+brackets. The third pass, declarations and statements, closes the language.
 
 ## Notation
 
@@ -170,8 +170,186 @@ Lexing takes the longest match: `::` is one token, never two `:`, and
 by `[` is a lexical error. What the tokens mean in which position — the seven
 uses of `[`, the three of `?` — is the expression pass.
 
+One consequence worth naming: there is no `>>` token, and none is wanted.
+`is_same<i32, i32>>()` reads `>` `>` — nested generic arguments close with two
+separate tokens (`05-traits.md`), which is only possible because the language
+has no shift operators. If shifts are ever introduced, the lexer must split
+`>>` and the grammar pays for it; that is an open item below, not a surprise
+waiting in the token table.
+
+## Expressions
+
+The precedence levels, tightest first:
+
+| level | operators | associativity |
+| --- | --- | --- |
+| postfix | `.f` `.0` `[...]` `(...)` `?` | chains left to right |
+| unary | `*` `&` `&mut` `!` `-` `^^` `$$` `@name` | prefix |
+| multiplicative | `*` `/` `%` | left |
+| additive | `+` `-` | left |
+| bit and | `&` | left |
+| bit xor | `^` | left |
+| bit or | `\|` | left |
+| relational | `<` `>` `<=` `>=` `==` `!=` | **no chaining** |
+| logical and | `&&` | left, short-circuit |
+| logical or | `\|\|` | left, short-circuit |
+
+Assignment is not on the table: it is a statement, not an expression
+(`a = b = c` is not a form). The relational level does not chain — `a < b < c`
+is a syntax error, and comparing two booleans is written with parentheses,
+`(a < b) == (c < d)`; `&&` and `||` chain freely because a chain of them is
+the common shape. `^^` and `$$` are prefix-only: `a ^^ b` is a syntax error
+(`08-reflection.md`).
+
+```ebnf
+expression  = if_expr | match_expr | or_expr ;
+
+if_expr     = [ "const" ] "if" expression block
+              [ "else" ( if_expr | block ) ] ;
+
+match_expr  = "match" expression "{" { arm "," } "}" ;
+arm         = pattern "=>" ( block | expression ) ;
+
+block       = "{" { statement } [ expression ] "}" ;
+statement   = let_statement | assignment | expression ";" ;
+
+or_expr     = and_expr { "||" and_expr } ;
+and_expr    = cmp_expr { "&&" cmp_expr } ;
+cmp_expr    = bitor_expr [ cmp_operator bitor_expr ] ;
+bitor_expr  = bitxor_expr { "|" bitxor_expr } ;
+bitxor_expr = bitand_expr { "^" bitand_expr } ;
+bitand_expr = add_expr { "&" add_expr } ;
+add_expr    = mul_expr { ( "+" | "-" ) mul_expr } ;
+mul_expr    = unary_expr { ( "*" | "/" | "%" ) unary_expr } ;
+
+unary_expr  = ( "*" | "&" [ "mut" ] | "!" | "-" | "^^" | "$$" ) unary_expr
+            | postfix_expr ;
+
+postfix_expr = primary_expr { postfix } ;
+postfix      = "." ( identifier | integer )
+             | "[" expression "]"
+             | "[" [ expression ] ".." [ expression ] "]"
+             | "(" [ arguments ] ")"
+             | "?" ;
+
+primary_expr = literal
+            | path
+            | "(" ")"
+            | "(" expression { "," expression } [ "," ] ")"
+            | array_literal
+            | struct_literal
+            | closure
+            | builtin_call ;
+
+path         = [ "::" ] segment { "::" segment } ;
+segment      = identifier [ generic_args ] ;
+generic_args = "<" generic_arg { "," generic_arg } [ "," ] ">" ;
+generic_arg  = ( "$$" | "^^" ) postfix_expr | type ;
+
+arguments    = argument { "," argument } [ "," ] ;
+argument     = [ "..." ] expression ;
+
+array_literal = "[" [ integer ] "]" [ "mut" ] type
+                "{" [ expression { "," expression } [ "," ] ] "}" ;
+struct_literal = path "{" [ field_init { "," field_init } [ "," ] ] "}" ;
+field_init    = identifier ":" expression ;
+
+closure     = "fn" "[" [ captures ] "]"
+              "(" [ parameters ] ")" [ "->" type ] block ;
+captures    = capture { "," capture } [ "," ] ;
+
+builtin_call = "@" identifier ( "(" [ arguments ] ")"
+               | generic_args "(" [ arguments ] ")" ) ;
+```
+
+An `if` is an expression: both branches have one type, and an `if` without an
+`else` yields `()` on the untaken path, so it is written as a statement
+(`10-iteration.md`). A `match` is an expression the same way, and an arm with
+several statements is a block whose last expression is its value
+(`09-match.md`). A block appears where a value is expected only as an `if`
+branch, a `match` arm, or a function body — a bare `{ ... }` is not an
+expression, so no binding takes one as its value. The condition of an `if`
+and the scrutinee of a `match` are parsed where a block is about to open, so
+a struct literal there must be parenthesized — `if Point{ x: 1, y: 2 } == q`
+is not a form; `if (Point{ x: 1, y: 2 }) == q` is.
+
+A `<` after an identifier in primary position starts generic arguments only
+when a matching `>` and what generic arguments lead to — a `(`, a `::`, a
+`.` — follow: `f<T>(x)` is a path with arguments called, `a < b` is a
+comparison, and the parser decides by looking ahead to the closing `>`.
+`is_same<i32, i32>::value` is the same rule one segment deeper — a path
+segment may carry arguments anywhere along the path, and so may splice:
+`is_same<$$t, u32>::value` passes a `type` value as an argument
+(`08-reflection.md`). The `.` of a tuple index takes an integer — `a.0`,
+never `a[0]` on a tuple (`01-types.md`).
+
+The `...` of an argument is spread: `sum(...ts)` passes the elements of a
+tuple one argument each (`04-generics.md`).
+
+`let_statement`, `assignment`, `pattern`, and `parameters` appear above as
+references into the third pass — declarations and statements, which closes
+the grammar. A block may hold statements followed by one expression; what a
+statement may be is settled there, and nothing here depends on the details.
+
+## Types
+
+Types have a grammar of their own, beside the expressions:
+
+```ebnf
+type          = result_type ;
+
+result_type   = prefix_type [ "?" prefix_type ] ;
+prefix_type   = "?" prefix_type
+              | "*" [ "mut" ] prefix_type
+              | "[" [ integer ] "]" [ "mut" ] prefix_type
+              | primary_type ;
+
+primary_type  = path
+              | "(" ")"
+              | "(" type { "," type } [ "," ] ")"
+              | "fn" "(" [ parameters ] ")" [ "->" type ]
+              | "dyn" path
+              | "type" ;
+```
+
+`?T` is `Option<T>` and `E?T` is `Result<T, E>` — the `?` is a prefix when
+the error side is empty and an infix when it is named (`05-traits.md`). The
+grammar reads it in one step: a type is `E ? T` where `E` may be omitted,
+and both sides nest — `E??T` is `Result<Option<T>, E>`, and an error type
+that is itself optional parses, whether or not it makes sense.
+
+`*T`, `*mut T`, `[N]T`, `[N]mut T`, `[]T`, `[]mut T` are all prefixes of the
+type they wrap. Generic arguments are a suffix of a path — `Vec<u32>` — and
+close with `>` tokens, one at a time, which is where the missing `>>` token
+earns its keep.
+
+### The `?` three ways
+
+The one character with three jobs never shares a position: in a type it is
+Option or Result, in an expression it is postfix propagation — `f()?` — and
+nowhere else. A `?` at the head of an expression is a syntax error, and a
+type never appears inside an expression without a marker (`@cast<u32>(x)` is
+a builtin call; the type lives in its angle brackets). No lexer hint is
+needed: the two grammars are disjoint, and position decides.
+
+### The brackets
+
+`[` has one use per position, and every one has its own production: a type
+prefix (`[N]T`, `[]T`, `[]mut T`), an array literal at the head of an
+expression (`[3]u32{1, 2, 3}` — the only `[` an expression may start with),
+a postfix index or range (`a[i]`, `a[1..2]`, `a[..]`), the capture list
+after `fn` (`fn[mut n]` — `fn` is a keyword, so the `[` is not ambiguous),
+and `#[`, which the lexer has already taken. The capture list keeps its
+brackets: no `fn|x|` — the `fn` prefix disambiguates on its own.
+
 ## Open items
 
+- Shift and bitwise-not operators. The language has `&`, `^`, `|` and no
+  `<<`, `>>`, `~` — no example ever wanted them, and their absence is what
+  lets nested generics close with plain `>` tokens. Introducing shifts means
+  splitting `>>` in the lexer (the Rust bill); if they arrive, they slot
+  between additive and bit and, or wherever C puts them, and this chapter
+  gains a row.
 - Identifiers beyond ASCII — which Unicode set, and whether v0 wants it at
   all.
 - Multiline string literals. The need is real (embedded text); the shape —
