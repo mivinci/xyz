@@ -218,6 +218,14 @@ for cond {
 }
 ```
 
+`continue` skips to the condition — it skips everything else in the body
+too, so a loop that steps at its tail (`for node != None { ...; node =
+next(node); }`) does not step when a path through the body ends in
+`continue`. This is the `while` bargain of C, not a new trap; a loop whose
+rhythm is that intricate is an `Iterator` (`09-match.md`, `04-generics.md`)
+— that is what the shape is for, and why the language does not carry a
+third loop.
+
 ### For let
 
 `for let` matches a value against a pattern and runs the body while the
