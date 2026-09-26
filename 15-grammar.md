@@ -1,9 +1,11 @@
 # Grammar
 
-This chapter states the language's grammar in EBNF. It arrives in three
-passes: the first fixed the lexical grammar — the tokens. This pass fixes
-expressions and types: the precedence levels, the three jobs of `?`, the
-brackets. The third pass, declarations and statements, closes the language.
+This chapter states the language's grammar in EBNF, in three passes that have
+all landed: the lexical grammar — the tokens; expressions and types — the
+precedence levels, the three jobs of `?`, the brackets; declarations and
+statements — the items, the blocks, the patterns, the shapes of `for`. The
+grammar is closed: every construct the chapters define has a production here,
+and every production traces back to a chapter.
 
 ## Notation
 
@@ -238,6 +240,7 @@ primary_expr = literal
             | "(" expression { "," expression } [ "," ] ")"
             | array_literal
             | struct_literal
+            | bare_struct_literal
             | closure
             | builtin_call ;
 
@@ -252,6 +255,7 @@ argument     = [ "..." ] expression ;
 array_literal = "[" [ integer ] "]" [ "mut" ] type
                 "{" [ expression { "," expression } [ "," ] ] "}" ;
 struct_literal = path "{" [ field_init { "," field_init } [ "," ] ] "}" ;
+bare_struct_literal = "{" [ field_init { "," field_init } [ "," ] ] "}" ;
 field_init    = identifier ":" expression ;
 
 closure     = "fn" "[" [ captures ] "]"
@@ -268,10 +272,14 @@ An `if` is an expression: both branches have one type, and an `if` without an
 several statements is a block whose last expression is its value
 (`09-match.md`). A block appears where a value is expected only as an `if`
 branch, a `match` arm, or a function body — a bare `{ ... }` is not an
-expression, so no binding takes one as its value. The condition of an `if`
-and the scrutinee of a `match` are parsed where a block is about to open, so
-a struct literal there must be parenthesized — `if Point{ x: 1, y: 2 } == q`
-is not a form; `if (Point{ x: 1, y: 2 }) == q` is.
+expression, so no binding takes one as its value. That absence is what makes
+the bare struct literal unambiguous: `{ a: 1 }` in expression position is
+`X{ a: 1 }` with the name left out, valid only where the type is already
+known (`01-types.md`) — and needing parentheses where a block is about to
+open. The condition of an `if`
+and the scrutinee of a `match` are such places —
+`if Point{ x: 1, y: 2 } == q` is not a form;
+`if (Point{ x: 1, y: 2 }) == q` is.
 
 A `<` after an identifier in primary position starts generic arguments only
 when a matching `>` and what generic arguments lead to — a `(`, a `::`, a
@@ -342,6 +350,167 @@ after `fn` (`fn[mut n]` — `fn` is a keyword, so the `[` is not ambiguous),
 and `#[`, which the lexer has already taken. The capture list keeps its
 brackets: no `fn|x|` — the `fn` prefix disambiguates on its own.
 
+## Declarations
+
+A file is a sequence of items, and an item is an attribute sequence on one of
+the declaration forms:
+
+```ebnf
+file  = { item } ;
+
+item = attributes
+      ( fn_item | struct_item | union_item | enum_item | trait_item
+      | impl_item | type_item | use_item | const_item | static_item ) ;
+
+attributes    = { "#[" attribute "]" } ;
+attribute     = identifier [ "(" [ attribute_args ] ")" ] ;
+attribute_args = attribute_arg { "," attribute_arg } [ "," ] ;
+attribute_arg = identifier | integer | float | string_literal ;
+
+fn_item = "fn" identifier [ generic_params ]
+          "(" [ [ attributes ] parameters ] ")"
+          [ "->" type ] ( block | ";" ) ;
+
+generic_params = "<" generic_param { "," generic_param } [ "," ] ">" ;
+generic_param  = identifier [ ":" bound ] [ "=" type ]
+              | "..." identifier ;
+bound = path { "+" path } ;
+
+parameters = parameter { "," parameter } [ "," ] ;
+parameter  = [ attributes ] [ "const" ] [ "mut" ] identifier ":" type ;
+
+struct_item = "struct" identifier [ generic_params ]
+              "{" [ field { "," field } [ "," ] ] "}" ;
+field = attributes [ "mut" ] identifier ":" type ;
+
+union_item = "union" identifier [ generic_params ]
+             "{" [ field { "," field } [ "," ] ] "}" ;
+
+enum_item = "enum" identifier [ generic_params ]
+            "{" [ variant { "," variant } [ "," ] ] "}" ;
+variant = attributes identifier
+          [ "=" integer | payload ] ;
+payload = "(" [ type { "," type } [ "," ] ] ")"
+        | "{" [ field { "," field } [ "," ] ] "}" ;
+
+trait_item = "trait" identifier [ generic_params ] "{" { trait_member } "}" ;
+trait_member = "type" identifier ";"
+             | "const" identifier ":" type ";"
+             | fn_item ;
+
+impl_item = "impl" [ generic_params ] path [ "for" type ] "{" { impl_member } "}" ;
+impl_member = fn_item
+            | "const" identifier ":" type "=" expression ";"
+            | "type" identifier "=" type ";" ;
+
+type_item  = "type" identifier [ generic_params ] "=" type ";" ;
+
+use_item   = "use" use_tree ";" ;
+use_tree   = path [ "::" ( "{" use_tree { "," use_tree } [ "," ] "}" | "*" ) ] ;
+
+const_item  = "const" identifier ":" type "=" expression ";" ;
+static_item = "static" [ "mut" ] identifier ":" type "=" expression ";" ;
+```
+
+The attribute arguments are identifiers or literals, never expressions, and
+they do not nest (`01-types.md`); `#[a] #[b]` and `#[a, b]` are the same
+pair. An attribute may mark an item, a variant, a field, or a parameter —
+the four `attributes` slots above — and never a statement or an expression.
+
+A function takes a body or a semicolon: the semicolon form is a declaration
+without a definition — a trait member, or an `#[extern(C)]` import
+(`01-types.md`). `generic_param` carries a bound, a default, or the `...`
+of a pack (`04-generics.md`); `bound` is a `+`-list of paths. The `mut` of a
+parameter marks the slot the way a field's does (`01-types.md`), and `const`
+states that the argument must be compile-time known (`08-reflection.md`).
+A positional payload lists bare types — `Circle(f32)` — and a named payload
+lists fields the way a struct does — `Rect { w: f32, h: f32 }`
+(`01-types.md`). An `impl` names a path, then the type it is for when the
+impl is for a trait — inherent impls omit the `for` (`05-traits.md`).
+
+## Statements
+
+A block holds statements, then perhaps one expression — its value. What a
+statement may be:
+
+```ebnf
+statement = let_statement
+          | assignment
+          | jump_statement
+          | for_statement
+          | const_item
+          | expression ";" ;
+
+let_statement = "let" [ "mut" ] pattern [ ":" type ] "=" expression ";" ;
+
+assignment = expression ( "=" | "+=" | "-=" | "*=" | "/=" ) expression ";" ;
+
+jump_statement = "return" [ expression ] ";"
+               | "break" ";"
+               | "continue" ";" ;
+
+for_statement = [ "const" ] "for" for_head block ;
+for_head      = expression
+              | "let" pattern "=" expression
+              | pattern "in" expression ;
+```
+
+The `const_item` among the statements is the one declaration allowed inside
+a block — a compile-time value with no address has no reason to wait for a
+namespace (`01-types.md`). Every other item lives at the top of a file; a
+function is not declared inside a function. There are no labels, so `break`
+and `continue` take no argument and leave the innermost loop.
+
+The left side of an assignment is parsed as an expression and checked as a
+place — the grammar does not separate places out, because a place is an
+expression shape (`00-preliminaries.md`), and the check is semantic.
+
+### The for shapes
+
+Three heads, one keyword. `for cond` runs while the condition holds — the
+`while` of other languages. `for let PAT = e` matches the pattern and ends
+the loop when it stops fitting. `for PAT in c` iterates a container through
+its iterator. A head starting with `let` is the second shape; otherwise the
+parser reads an expression, and an `in` behind it re-reads what came before
+as a pattern — the two are written the same way, which is why the re-read is
+free (`09-match.md`). A `const` before the `for` asks for compile-time
+evaluation of the whole loop (`10-iteration.md`).
+
+There is no C-style three-part `for (init; cond; step)`: `for cond` with a
+`let mut` before it and a step at the tail of the body says the same thing
+with parts the language already has, and an iterator says it better when the
+step is a walk. Zig makes the same cut — `while` and `for`, no third head.
+What the three shapes do not give is a range: `..` lives in index brackets
+only, so `for i in 0..10` is not a form today. It would take a `Range`
+iterator and letting `..` out of the brackets — an addition to weigh when
+the need shows up, recorded as an open item, not a gap this pass left.
+
+### Patterns
+
+The patterns of `let`, `for`, and `match` arms:
+
+```ebnf
+pattern      = or_pattern ;
+or_pattern   = unit_pattern { "|" unit_pattern } ;
+unit_pattern = "_"
+            | path [ payload ]
+            | "(" [ pattern { "," pattern } [ "," ] ] ")"
+            | "{" [ field_pattern { "," field_pattern } [ "," ] ] [ ".." ] "}" ;
+
+payload      = "(" [ pattern { "," pattern } [ "," ] ] ")"
+            | "{" [ field_pattern { "," field_pattern } [ "," ] ] [ ".." ] "}" ;
+
+field_pattern = identifier [ ":" pattern ] ;
+```
+
+A pattern payload takes patterns where a declaration payload took types —
+`Some(x)` matches what `Some(T)` declares. A bare `{ a, b }` matches a
+struct field by field, the way a bare `{ a: 1 }` builds one
+(`01-types.md`); `Rect { w, h }` names the struct. A `..` ignores the rest
+of a named payload. An or-pattern lists alternatives; there are no guards,
+no ranges, and no literal patterns — a value to compare against is a
+condition, and it goes in the expression, not the pattern (`09-match.md`).
+
 ## Open items
 
 - Shift and bitwise-not operators. The language has `&`, `^`, `|` and no
@@ -350,6 +519,9 @@ brackets: no `fn|x|` — the `fn` prefix disambiguates on its own.
   splitting `>>` in the lexer (the Rust bill); if they arrive, they slot
   between additive and bit and, or wherever C puts them, and this chapter
   gains a row.
+- Range expressions. `..` lives in index brackets only; `for i in 0..10`
+  would take a `Range` iterator and a range expression — an addition to
+  weigh when the need shows up.
 - Identifiers beyond ASCII — which Unicode set, and whether v0 wants it at
   all.
 - Multiline string literals. The need is real (embedded text); the shape —
