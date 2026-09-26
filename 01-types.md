@@ -886,7 +886,7 @@ Six attributes are defined by the language, all consumed by the compiler:
 | `#[extern(C)]` | C linkage, import or export | External functions above |
 | `#[build(...)]` | the function exists only in the named modes | Build modes below |
 | `#[noreturn]` | a call to it never produces a value | `10-iteration.md` |
-| `#[test]` | the function is a test; collected into the test artifact | `11-namespaces.md` |
+| `#[test]` | the function is a test; collected into the test artifact | `13-testing.md` |
 
 There is no way to define a new one. Any other name is a user attribute: the
 compiler does not interpret it, but reflection reads it — the `#[skip]` above
