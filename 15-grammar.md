@@ -18,6 +18,7 @@ and every production traces back to a chapter.
 | `( x \| y )` | grouping |
 | `x … y` | the range from `x` to `y` |
 | `"..."` | the characters themselves — a terminal |
+| `'...'` | the same, when the terminal itself contains a `"` |
 
 A production may be stated twice with `|` omitted; the alternatives accumulate.
 Terminals are always quoted.
@@ -125,7 +126,15 @@ c_string     = "c" '"' { string_character | escape } '"' ;
 raw_string   = "r" '"' { raw_character } '"' ;
 raw_c_string = "cr" '"' { raw_character } '"' ;
 
-string_literal = plain_string | c_string | raw_string | raw_c_string ;
+string_literal = plain_string | c_string | raw_string | raw_c_string
+               | multiline_string ;
+
+multiline_string = [ "cr" | "c" | "r" ] '"""' newline
+                   { ml_line newline } ml_indent '"""' ;
+
+ml_line     = { ml_character | escape } ;
+ml_character = any character except newline ;
+ml_indent   = { " " | "\t" } ;
 
 escape          = "\" ( "n" | "t" | "r" | "0" | "'" | '"' | "\" | "x" hex_digit hex_digit ) ;
 
@@ -134,20 +143,56 @@ string_character = any character except '"' | "\" | newline ;
 raw_character    = any character except '"' | newline ;
 ```
 
+The escapes are the whole set: `\n` `\t` `\r` `\0` `\'` `\"` `\\` and
+`\xNN`, which takes any value through `0xFF` — the elements are bytes
+(`01-types.md`). There is no `\u{...}`: a string literal keeps the bytes of
+the source, and source is UTF-8, so a character beyond ASCII is written as
+itself.
+
 The four string forms differ only in prefix and character set. `r` turns
 every `\` into a plain byte and admits no escapes; `c` appends a `'\0'`
 terminator — the meanings are `01-types.md`'s, and the prefixes combine as
 `cr`. A prefix is part of the literal only when it touches it: an identifier
 `c`, `r`, or `cr` immediately followed by `"` is the prefixed literal, and
 that is the whole rule — an identifier by any other spelling, or with a
-space before the quote, lexes as itself. No literal crosses a newline; a
-string with a newline in it is written with `\n`.
+space before the quote, lexes as itself. A single-line literal does not
+cross a newline; a string with a newline in it is written with `\n` — or as
+a multiline literal:
 
-The escapes are the whole set: `\n` `\t` `\r` `\0` `\'` `\"` `\\` and
-`\xNN`, which takes any value through `0xFF` — the elements are bytes
-(`01-types.md`). There is no `\u{...}`: a string literal keeps the bytes of
-the source, and source is UTF-8, so a character beyond ASCII is written as
-itself.
+### Multiline strings
+
+A multiline string opens with `"""` — and a newline must follow immediately;
+that newline is not content. The content runs to a closing `"""`, which
+stands at the head of its own line; the newline before it is not content
+either. Each content line contributes itself and one newline, except the
+last one, whose newline is the one before the closing quotes — so the
+literal ends with a newline exactly when the last content line is empty:
+
+```rust
+let s = """
+  {
+    "lang": true
+  }
+  """;
+```
+
+The bytes are `{\n  "lang": true\n}` — the closing quotes' own indentation
+is stripped from the start of every content line. That is the whole
+indentation rule, and it is two sentences: a line with less indentation than
+the closing `"""` is a lexical error, and an empty line is exempt from the
+check — as a content line it contributes just its newline. Stripping matches
+the closing line's whitespace characters one for one, so a tab-indented
+content line under a space-indented closer is an error, not a quiet
+misalignment.
+
+The prefixes and escapes carry over unchanged: `c` appends the `'\0'`,
+`r` makes every `\` a plain byte — so the plain form takes the eight
+escapes, the raw form takes none. In the plain form `\"` hides a quote from
+the delimiter; in the raw form `"""` cannot appear at all — it closes the
+literal — so three quotes in a row are written in the plain form or built
+by concatenation. A `"` or `""` inside a line is content in either form.
+The carriage returns and BOM of the source are normalized before this rule
+runs, as everywhere.
 
 ## Punctuation
 
@@ -524,5 +569,3 @@ condition, and it goes in the expression, not the pattern (`09-match.md`).
   weigh when the need shows up.
 - Identifiers beyond ASCII — which Unicode set, and whether v0 wants it at
   all.
-- Multiline string literals. The need is real (embedded text); the shape —
-  a triple quote, an indent-aware form — is not yet chosen.
