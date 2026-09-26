@@ -31,6 +31,7 @@ notation and the terms every chapter uses.
 | [12-projects.md](./12-projects.md) | `11` | compilation unit, one artifact, `main` and exit codes |
 | [13-testing.md](./13-testing.md) | `12` | `#[test]`, the test artifact and its runner |
 | [14-macros.md](./14-macros.md) | `08` | the case against a user-defined macro system (not settled) |
+| [15-grammar.md](./15-grammar.md) | — | the grammar in EBNF — the lexical pass is in, expressions and declarations follow |
 
 ## What xyz guarantees
 
