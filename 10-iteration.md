@@ -310,6 +310,46 @@ With a plain `[3]u32`, `*mut [N]mut T` does not match, and since `*mut [N]T` als
 matches `*[N]T` (`04-generics.md`) the read-only impl is what applies: `x` is
 `*u32` and `*x = v` is rejected — the same answer `arr[0] = v` gets.
 
+### Range
+
+`a..b` is an expression — one `..`, both ends required (`15-grammar.md`) —
+and its value is a `Range<T>` for the integer type of the ends:
+
+```rust
+// in std
+struct Range<T> { start: T, end: T }
+
+impl<T: Copy> Iterator for Range<T> {
+  type Item = T;
+  fn next(self: *mut Self) -> ?T {
+    if self.start < self.end {
+      const v = self.start;
+      self.start = self.start + 1;
+      return Some(v);
+    }
+    return None;
+  }
+}
+```
+
+The interval is half-open: `0..3` yields 0, 1, 2. A range with `start >= end`
+yields nothing — the loop body never runs, and no error is raised. The most
+common consumer is the loop the range was made for:
+
+```rust
+for i in 0..len {
+  visit(a[i]);
+}
+```
+
+There is no `..=`: a closed end is written `0..(n + 1)`. An open end is not
+an expression — `..n` and `n..` index a slice's length, and they stay inside
+index brackets (`01-types.md`), where the end they mean exists.
+
+`a[1..3]` is not sugar for passing a range value: slicing borrows the array,
+and the bracket form says so where it stands. A `Range` value is a value —
+stored, passed, returned — and the two agree only in appearance.
+
 ### Const For
 
 `const for` requires the iterated value to be compile-time known and

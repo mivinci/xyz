@@ -704,8 +704,28 @@ The prefixes combine: `cr"..."` is raw and NUL-terminated:
 let d = cr"hi\n";   // d: []u8 — backslash and `n`, then '\0'
 ```
 
-A raw literal cannot contain `"` — it is the delimiter. Write a quote as an
-escaped `\"` in a normal literal instead; there is no `r#"..."#` nesting.
+A single-line raw literal cannot contain `"` — it is the delimiter. Write a
+quote as an escaped `\"` in a normal literal instead; there is no `r#"..."#`
+nesting. A multiline raw literal takes a lone `"` or `""` in a line, and only
+`"""` closes it (`15-grammar.md`).
+
+### Multiline String
+
+A `"""` literal spans lines, for embedded text — JSON, SQL, generated code.
+It is a `[]u8` like every string. The closing quotes' own indentation is
+stripped from each line, so text sits flush inside the code that carries it:
+
+```rust
+let s = """
+  {
+    "lang": true
+  }
+  """;
+// s: []u8 — the bytes are {\n  "lang": true\n}
+```
+
+The prefixes combine here too: `r"""` makes every `\` a plain byte, `c"""`
+appends the `'\0'`, `cr"""` does both (`15-grammar.md`).
 
 ## Constants and statics
 
@@ -946,8 +966,8 @@ fn panic(msg: []u8) { /* print the message, then abort */ }
 ```
 
 Every runtime check fails into a panic that names the check — "index out of
-range", "arithmetic overflow" — and `assert` (below) fails the same way: one
-mechanism, not one per cause.
+range", "arithmetic overflow", "shift amount out of range" — and `assert`
+(below) fails the same way: one mechanism, not one per cause.
 
 A panic does not unwind. Destructors are inserted statically on the paths the
 compiler can see (`03-move.md`), and the panic path is not one of them — a

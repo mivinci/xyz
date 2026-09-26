@@ -86,8 +86,18 @@ Some things are language, not traits:
 
 - `&&` and `||` — they short-circuit, which a call cannot
 - `?`, `!`, `...`, and every `@` builtin — syntax and builtins, not operators
-- `%`, the bitwise operators, and unary `-` are built in for integers; they have
-  no trait
+- `%`, the bitwise operators, shifts, and unary `-` and `~` are built in for
+  integers; they have no trait
+
+### Shifts
+
+`a << n` and `a >> n` are built in for integers, with any integer type on
+the right. A signed `>>` is an arithmetic shift — the sign bit repeats — and
+an unsigned `>>` is a logical one; there is no `>>>`, because the unsigned
+types already say which shift is meant. A shift amount at or above the
+operand's width panics at run time — "shift amount out of range" — and is a
+compile error when the amount is a compile-time known constant, the same
+bargain a constant index out of range makes (`01-types.md`).
 
 ### Why indexing is not a trait
 
@@ -119,5 +129,5 @@ As a language rule, indexing is uniform and can be checked at compile time.
 
 - An `Output` associated type, for operations that return something other than
   `Self` — a matrix times a vector.
-- Traits for `%`, the bitwise operators, unary `-`, and in-place operations that
-  would avoid building a new value.
+- Traits for `%`, the bitwise operators, shifts, unary `-`, and in-place
+  operations that would avoid building a new value.
